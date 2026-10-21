@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Khanh's Work Space</title>
+<link rel="icon" href="assets/img/logo.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Itim&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="win">
+  <div class="tabbar" id="tabbar" role="tablist" aria-label="Các mục"></div>
+  <div class="navbar">
+    <button class="nbtn" id="nBack" type="button" aria-label="Trang trước"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5l-7 7 7 7"/></svg></button>
+    <button class="nbtn" id="nFwd" type="button" aria-label="Trang sau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 5l7 7-7 7"/></svg></button>
+    <button class="nbtn" id="nReload" type="button" aria-label="Tải lại trang" style="color:var(--pink-ink)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg></button>
+    <div class="url" id="url" aria-live="polite"></div>
+  </div>
+
+  <section class="banner2" aria-label="Chào mừng">
+    <div class="avatar" id="avatar"></div>
+    <p class="bub">Mình đi cùng bạn! Bấm vào một sticker hoặc một tab để vào làm việc nhé.</p>
+    <div class="wel"><h2>Chào Khanh!</h2><p>Hôm nay mình đi đâu nè? (^_^)</p></div>
+    <div class="pills">
+      <button class="lnk g" id="drive" type="button"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8 4h8l6 10-4 6H6l-4-6z"/></svg></i><span>Google Drive</span></button>
+      <button class="lnk" id="todayBtn" type="button"><i><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.8-8 11-8 11z"/></svg></i><span>Việc hôm nay</span></button>
+    </div>
+  </section>
+  <div class="strip" aria-hidden="true"></div>
+
+  <div class="body">
+    <aside class="side" aria-label="Hồ sơ">
+      <div class="nm">Khanh's work space</div>
+      <p class="infoln"><span>hôm nay</span><span>:</span><span id="sToday"></span><span>:</span><span id="sOpen"></span></p>
+      <p class="bio">Mỗi sticker trên bản đồ là một mục làm việc. Job ads, marketing, chụp ảnh, tiếng Trung, thạc sĩ và trợ lý đều ở cùng một chỗ.</p>
+      <div class="flw" id="flw" aria-hidden="true"></div>
+      <div class="qgrid" id="qgrid"></div>
+      <p class="pend">việc đang chờ: <b id="sPend"></b></p>
+    </aside>
+
+    <main class="mainstack" id="main">
+      <div class="mainstack" id="homeView">
+        <div class="topic"><span>Hôm nay check gì ta</span><small>(bấm vào một mục)</small></div>
+        <div class="mapbox"><svg id="map" role="group" aria-label="Hôm nay check gì ta, mỗi sticker là một mục"></svg></div>
+        <div class="notes" id="notes"></div>
+        <p class="fine">Số trên bản đồ và dữ liệu trong các trang là ví dụ để bạn xem hình dạng.</p>
+      </div>
+      <div class="mainstack" id="modView" hidden>
+        <div class="topic"><span id="modTitle" tabindex="-1"></span></div>
+        <div class="sheet">
+          <span id="modImg"></span>
+          <button class="crumb" id="crumb" type="button">← Về bản đồ</button>
+          <p class="sub" id="modSub" style="margin-top:8px"></p>
+          <div class="stack" id="modBody"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <footer class="foot"><span class="fpill">Khanh's work space · bản mẫu</span></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="assets/drive.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

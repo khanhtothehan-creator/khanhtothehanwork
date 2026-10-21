@@ -1,0 +1,504 @@
+/* ===== Linh vật của Khanh: ảnh của bạn, cắt từ tờ sticker ===== */
+const STK = {
+  avatar: ['assets/img/avatar.webp', 230, 203],
+  logo: ['assets/img/logo.webp', 110, 97],
+  assistant: ['assets/img/assistant.webp', 197, 200],
+  client: ['assets/img/client.webp', 170, 146],
+  ads: ['assets/img/ads.webp', 285, 244],
+  zh: ['assets/img/zh.webp', 277, 241],
+  master: ['assets/img/master.webp', 271, 266],
+  marketing: ['assets/img/marketing.webp', 286, 243],
+  photo: ['assets/img/photo.webp', 259, 247]
+};
+const stk = (k, cls, alt) => `<img class="${cls}" src="${STK[k][0]}" width="${STK[k][1]}" height="${STK[k][2]}" alt="${alt || ''}">`;
+
+/* ===== Dữ liệu ví dụ ===== */
+const STAGES = ['Mới', 'Đã gửi tư vấn', 'Đang sửa', 'Đã chốt', 'Đang setup', 'Đang chạy', 'Đang tối ưu'];
+/* Mỗi khách:
+   drive = link thư mục Drive của khách (mở thư mục trên drive.google.com, copy link trên thanh địa chỉ, dán vào giữa hai dấu nháy)
+   links = link từng thư mục con, ví dụ: links: { '01_Brief': 'https://drive.google.com/drive/folders/...' } (không bắt buộc) */
+const CLIENTS = [
+  { n: 'Shop mẫu A', s: 0, note: 'Brief vừa nhận', goal: 'Tin nhắn', bud: 15000000, from: '2026-11-01', to: '2026-11-30', drive: '', links: {} },
+  { n: 'Spa mẫu B', s: 1, note: 'Chờ khách xem tư vấn v1', goal: 'Chuyển đổi', bud: 12000000, from: '2026-11-05', to: '2026-12-05', drive: '', links: {} },
+  { n: 'Quán mẫu C', s: 2, note: 'Sửa ngân sách theo ý khách (v2)', goal: 'Nhận diện', bud: 8000000, from: '2026-11-10', to: '2026-11-30', drive: '', links: {} },
+  { n: 'Studio mẫu D', s: 4, note: 'Cài Pixel, dựng 3 chiến dịch', goal: 'Chuyển đổi', bud: 25000000, from: '2026-10-15', to: '2026-11-15', drive: '', links: {} },
+  { n: 'Shop mẫu E', s: 5, note: 'Tuần 3, ngân sách 20 triệu', goal: 'Tin nhắn', bud: 20000000, from: '2026-10-07', to: '2026-11-07', drive: '', links: {} },
+  { n: 'Cửa hàng mẫu F', s: 6, note: 'Tuần 5, thử mẫu video mới', goal: 'Chuyển đổi', bud: 30000000, from: '2026-09-16', to: '2026-11-16', drive: '', links: {} }
+];
+const ADS = [
+  { name: 'ShopE_Mess_Broad_Video01_2110', goal: 'Tin nhắn', bud: 300000, run: true },
+  { name: 'ShopE_Mess_Lookalike_Anh02_2110', goal: 'Tin nhắn', bud: 200000, run: true },
+  { name: 'StudioD_Conv_Broad_Video01_2110', goal: 'Chuyển đổi', bud: 250000, run: false },
+  { name: 'StudioD_Conv_Retarget_Anh01_2110', goal: 'Chuyển đổi', bud: 150000, run: false }
+];
+const AGENTS = [
+  ['Tiếp nhận', 'Đọc brief, hỏi lại khách nếu thiếu thông tin.'],
+  ['Chiến lược', 'Đề xuất kênh, ngân sách, phễu.'],
+  ['Nội dung', 'Viết mẫu quảng cáo, gợi ý hình ảnh.'],
+  ['Tracking', 'Tạo checklist cài đặt theo từng nền tảng.'],
+  ['Báo cáo', 'Đọc số liệu, viết nhận xét và đề xuất chỉnh sửa. Bạn duyệt trước khi gửi khách.', 'Claude']
+];
+const SCHOOLS = [
+  ['政大 NCCU', 'Global Communication and Innovation Technology (GCIT)'],
+  ['中國文化大學 PCCU', 'Kỳ xuân 2027'],
+  ['高雄科技大學 NKUST', 'Marketing và Quản lý phân phối, đang xin học bổng']
+];
+
+/* ===== Danh bạ mục: thêm đảo mới = thêm một dòng ở đây =====
+   w = vị trí trên bản đồ (màn rộng), n = vị trí trên bản đồ (điện thoại); mục nào cũng nằm trong cùng một trang */
+const MODULES = [
+  { id: 'ads', slug: 'ads', name: 'Job chạy ads', title: 'Job chạy ads', sub: 'Từ brief đến theo dõi Meta Ads, mỗi khách một hồ sơ riêng.', desc: ['Từ brief đến báo cáo', 'Meta Ads cho khách'], w: { x: 230, y: 205 }, n: { x: 125, y: 185 }, art: 'ads', badge: CLIENTS.filter(c => c.s <= 2).length },
+  { id: 'marketing', slug: 'marketing', name: 'Marketing job', title: 'Marketing job', sub: 'Plan, content, brand và growth cho các job marketing.', desc: ['Plan, content,', 'brand, growth'], w: { x: 440, y: 185 }, n: { x: 355, y: 225 }, art: 'ads', badge: 0 },
+  { id: 'photo', slug: 'chup-anh', name: 'Chụp ảnh job', title: 'Chụp ảnh job', sub: 'Lịch chụp, khách và file ảnh của từng job.', desc: ['Lịch chụp, khách', 'và file ảnh từng job'], w: { x: 650, y: 205 }, n: { x: 125, y: 395 }, art: 'ads', badge: 0 },
+  { id: 'zh', slug: 'tieng-trung', name: 'Học tiếng Trung', title: 'Học tiếng Trung', sub: 'Từ vựng, ôn tập và TOCFL.', desc: ['Từ vựng, ôn tập', 'và TOCFL'], w: { x: 230, y: 455 }, n: { x: 355, y: 435 }, art: 'zh', badge: 12 },
+  { id: 'master', slug: 'thac-si', name: 'Học thạc sĩ', title: 'Học thạc sĩ', sub: 'Các trường, hạn nộp và tiến độ từng hồ sơ.', desc: ['Trường, hạn nộp', 'và tiến độ hồ sơ'], w: { x: 440, y: 475 }, n: { x: 125, y: 605 }, art: 'school', badge: 3 },
+  { id: 'assistant', slug: 'tro-ly', name: 'Trợ lý chung', title: 'Trợ lý chung', sub: 'Hỏi gì cũng được, trợ lý chuyển đúng mục.', desc: ['Hỏi gì cũng được', 'tự chuyển đúng mục'], w: { x: 650, y: 455 }, n: { x: 355, y: 645 }, art: 'tower', badge: 0 }
+];
+
+/* ===== Hình vẽ các toà nhà (gốc toạ độ = giữa mặt đảo, nhà cao lên phía trên) ===== */
+const ART = {
+  ads() {
+    const n = 6, w = 104 / n; let aw = '';
+    for (let i = 0; i < n; i++) {
+      const x0 = -52 + i * w, x1 = x0 + w, t0 = -40 + i * (80 / n), t1 = t0 + 80 / n, c = i % 2 ? 'bld' : 'awn';
+      aw += `<polygon class="o ${c}" points="${x0},-58 ${x1},-58 ${t1},-80 ${t0},-80"/>`;
+      aw += `<path class="o ${c}" d="M${x0},-58 A${w / 2},${w / 2} 0 0 0 ${x1},-58 Z"/>`;
+    }
+    return `<rect class="o bld" x="-44" y="-58" width="88" height="52" rx="5"/>
+      <rect class="o glass" x="-36" y="-46" width="32" height="26" rx="3"/>
+      <rect class="awn" x="-31" y="-30" width="6" height="8"/><rect class="awn" x="-22" y="-36" width="6" height="14"/><rect class="awn" x="-13" y="-42" width="6" height="20"/>
+      <rect class="o door" x="10" y="-44" width="24" height="38" rx="3"/><circle class="gld" cx="29" cy="-24" r="2.4"/>
+      ${aw}
+      <line class="ln" x1="-14" y1="-84" x2="-14" y2="-80"/><line class="ln" x1="14" y1="-84" x2="14" y2="-80"/>
+      <rect class="o bld" x="-22" y="-108" width="44" height="24" rx="4"/>
+      <polyline class="ln" style="stroke:var(--awn);stroke-width:3" points="-16,-91 -8,-96 -1,-92 8,-101 15,-99"/>`;
+  },
+  zh() {
+    return `<rect class="o bld" x="-42" y="-44" width="84" height="38"/>
+      <rect class="o glass" x="-31" y="-36" width="14" height="14" rx="2"/><rect class="o glass" x="17" y="-36" width="14" height="14" rx="2"/>
+      <rect class="o door" x="-12" y="-38" width="24" height="32" rx="2"/>
+      <rect class="o red" x="-45" y="-48" width="7" height="42"/><rect class="o red" x="38" y="-48" width="7" height="42"/>
+      <path class="o red" d="M-68,-46 Q-42,-48 -32,-70 L32,-70 Q42,-48 68,-46 Z"/>
+      <rect class="o red" x="-22" y="-82" width="44" height="12" rx="3"/>
+      <line class="ln" x1="0" y1="-82" x2="0" y2="-91"/><circle class="o gld" cx="0" cy="-93" r="3.4"/>
+      <line class="ln" x1="-56" y1="-46" x2="-56" y2="-40"/><ellipse class="o gld" cx="-56" cy="-30" rx="9" ry="11"/><text class="han-t" x="-56" y="-26" text-anchor="middle">學</text>
+      <line class="ln" x1="56" y1="-46" x2="56" y2="-40"/><ellipse class="o gld" cx="56" cy="-30" rx="9" ry="11"/><text class="han-t" x="56" y="-26" text-anchor="middle">中</text>`;
+  },
+  school() {
+    return `<rect class="o bld" x="-58" y="-56" width="116" height="50" rx="3"/>
+      <rect class="o bld" x="-22" y="-8" width="44" height="6" rx="1"/>
+      <polygon class="o blue" points="-66,-56 0,-94 66,-56"/>
+      <path class="o wht" d="M-8,-77 V-71 Q0,-66 8,-71 V-77"/>
+      <polygon class="o wht" points="0,-86 14,-80 0,-74 -14,-80"/>
+      <line class="ln" x1="13" y1="-79" x2="13" y2="-72"/>
+      <line class="ln" x1="0" y1="-94" x2="0" y2="-112"/><polygon class="o awn" points="0,-112 17,-107 0,-102"/>
+      <rect class="o glass" x="-48" y="-46" width="12" height="18" rx="2"/><rect class="o glass" x="-32" y="-46" width="12" height="18" rx="2"/>
+      <rect class="o glass" x="20" y="-46" width="12" height="18" rx="2"/><rect class="o glass" x="36" y="-46" width="12" height="18" rx="2"/>
+      <path class="o door" d="M-11,-8 V-28 A11,11 0 0 1 11,-28 V-8 Z"/>`;
+  },
+  tower() {
+    return `<rect class="o bld" x="-27" y="-68" width="54" height="62" rx="8"/>
+      <path class="o blue" d="M-31,-68 A31,31 0 0 1 31,-68 Z"/>
+      <line class="ln" x1="0" y1="-99" x2="0" y2="-110"/><circle class="o awn" cx="0" cy="-112" r="3.6"/>
+      <circle class="o wht" cx="0" cy="-38" r="19"/>
+      <polygon class="awn" points="0,-55 4.5,-38 0,-21 -4.5,-38"/>
+      <polygon class="blue" points="-17,-38 0,-42.5 17,-38 0,-33.5"/>
+      <circle class="inkf" cx="0" cy="-38" r="2.4"/>`;
+  },
+  locked() {
+    return `<path class="dash-b" d="M-44,-6 V-50 L0,-84 L44,-50 V-6 Z"/><text class="q" x="0" y="-30" text-anchor="middle">?</text>`;
+  }
+};
+
+/* ===== Vẽ làng: tất cả nhà trên một hòn đảo, thấy hết trong một trang ===== */
+const LAND = {
+  w: { vb: '0 0 880 720', cx: 440, cy: 330, rx: 430, ry: 290,
+    rock: 'M10,330 Q20,500 170,600 Q300,665 440,708 Q580,665 710,600 Q860,500 870,330 Z', lines: 'M150,560 Q200,615 250,655 M720,560 Q670,620 620,658' },
+  n: { vb: '0 0 480 900', cx: 240, cy: 430, rx: 228, ry: 385,
+    rock: 'M12,430 Q18,700 110,805 Q175,865 240,888 Q305,865 370,805 Q462,700 468,430 Z', lines: 'M60,720 Q110,810 170,852 M420,720 Q370,810 310,852' }
+};
+const ROADS = {
+  w: [[230, 211], [440, 191], [650, 211], [715, 335], [650, 461], [440, 481], [230, 461]],
+  n: [[125, 191], [240, 215], [355, 231], [240, 320], [125, 401], [240, 420], [355, 441], [240, 530], [125, 611], [240, 630], [355, 651]]
+};
+let mapMode = null;
+const P = m => m[mapMode];
+
+function smooth(pts) {
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
+const cloud = (x, y, s, c) => `<g class="cl ${c}" transform="translate(${x},${y}) scale(${s})"><circle cx="0" cy="0" r="18"/><circle cx="24" cy="-8" r="24"/><circle cx="52" cy="0" r="18"/><rect x="-18" y="0" width="88" height="18" rx="9"/></g>`;
+const coin = (x, y, r) => `<g transform="translate(${x},${y}) rotate(${r})"><ellipse class="coin-o" rx="14" ry="11"/><ellipse class="coin-i" rx="8" ry="6"/></g>`;
+const pinShape = (cls, x, y, label) => `<g class="pin ${cls}" transform="translate(${x},${y})"><g class="pb"><path d="M0,0 C-9,-11 -13,-17 -13,-24 a13,13 0 1 1 26,0 C13,-17 9,-11 0,0Z"/>${label ? `<text y="-19.5" text-anchor="middle">${label}</text>` : '<circle cx="0" cy="-24" r="4.5" fill="#fff"/>'}</g></g>`;
+const tree = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><ellipse class="patch" cx="0" cy="1" rx="17" ry="5" style="stroke-width:1.5"/><rect class="o door" x="-4" y="-18" width="8" height="18"/><circle class="o tr" cx="-11" cy="-24" r="12"/><circle class="o tr" cx="11" cy="-24" r="12"/><circle class="o tr" cx="0" cy="-34" r="15"/></g>`;
+const pond = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><ellipse class="pond" rx="42" ry="15"/><ellipse class="pond-hi" cx="-10" cy="-3" rx="18" ry="4"/></g>`;
+const bloom = (x, y) => `<g transform="translate(${x},${y})"><circle class="fl" cx="0" cy="-3.5" r="3"/><circle class="fl" cx="3.4" cy="-1" r="3"/><circle class="fl" cx="2" cy="3" r="3"/><circle class="fl" cx="-2" cy="3" r="3"/><circle class="fl" cx="-3.4" cy="-1" r="3"/><circle class="fl-c" r="2.2"/></g>`;
+
+function landLayer(mode) {
+  const L = LAND[mode];
+  return `<path class="rock" d="${L.rock}"/><path class="rk-l" d="${L.lines}"/>
+    <ellipse class="isl" cx="${L.cx}" cy="${L.cy}" rx="${L.rx}" ry="${L.ry}"/>
+    <ellipse class="isl-hi" cx="${L.cx}" cy="${L.cy - 10}" rx="${L.rx * .93}" ry="${L.ry * .9}"/>`;
+}
+const patchLayer = m => { const p = P(m); return `<ellipse class="patch${m.locked ? ' lk' : ''}" cx="${p.x}" cy="${p.y + 5}" rx="68" ry="17"/>`; };
+const skyFor = mode => (mode === 'w'
+  ? [cloud(14, 56, .95, 'c2'), cloud(700, 30, .9, 'c3'), cloud(-6, 560, .85, 'c3'), cloud(775, 585, .8, 'c1')]
+  : [cloud(-12, 44, .9, 'c2'), cloud(390, 20, .8, 'c3'), cloud(-16, 780, .85, 'c3'), cloud(392, 775, .8, 'c1')]).join('');
+const groundFor = mode => (mode === 'w'
+  ? [tree(62, 340, 1), tree(818, 340, 1), tree(95, 520, .85), tree(785, 520, .85), tree(335, 255, .8), tree(545, 255, .8), tree(335, 520, .8), tree(545, 520, .8),
+     coin(335, 140, -14), coin(545, 130, 12), coin(440, 340, 10), pond(440, 610, .8), bloom(150, 300), bloom(730, 300), bloom(340, 600), bloom(540, 600), bloom(440, 90)]
+  : [tree(30, 310, .8), tree(450, 340, .8), tree(240, 160, .8), tree(240, 390, .8), tree(32, 520, .8), tree(448, 540, .8), tree(240, 560, .8), pond(240, 770, .8),
+     coin(240, 280, -12), coin(240, 480, 10), bloom(210, 120), bloom(60, 420), bloom(430, 450), bloom(110, 760), bloom(370, 760)]).join('');
+
+function stickerArt(m, compact) {
+  const k = STK[m.id]; if (!k) return ART[m.art]();
+  const h = compact ? 104 : 122, w = Math.min(158, Math.round(h * k[1] / k[2])), hh = Math.round(w * k[2] / k[1]);
+  return `<image href="${k[0]}" x="${-w / 2}" y="${-hh - 2}" width="${w}" height="${hh}"/>`;
+}
+function topLayer(m) {
+  const p = P(m), W = 170, compact = mapMode === 'n', H = compact ? 64 : 82;
+  const pillText = m.locked ? 'Sắp mở' : (m.badge ? `${m.badge} việc đang chờ` : 'Sẵn sàng');
+  const pw = Math.round(pillText.length * 7 + 26);
+  const label = m.locked ? 'Đất trống, sắp xây' : `${m.title}${m.badge ? `, ${m.badge} việc đang chờ` : ''}`;
+  const pin = m.badge ? pinShape('', 74, -100, m.badge) : '';
+  const mas = '';
+  const desc = compact
+    ? `<text class="cs" x="${W / 2}" y="56" text-anchor="middle">${m.desc[0]}</text>`
+    : `<text class="cs" x="${W / 2}" y="56" text-anchor="middle">${m.desc[0]}</text><text class="cs" x="${W / 2}" y="71" text-anchor="middle">${m.desc[1]}</text>`;
+  const card = `<g class="card" transform="translate(${-W / 2},34)">
+    <rect class="cd" width="${W}" height="${H}" rx="18"/>
+    <circle class="hole" cx="11" cy="11" r="3.6"/><circle class="hole" cx="${W - 11}" cy="11" r="3.6"/>
+    <circle class="hole" cx="11" cy="${H - 11}" r="3.6"/><circle class="hole" cx="${W - 11}" cy="${H - 11}" r="3.6"/>
+    <rect class="pl" x="${(W - pw) / 2}" y="-12" width="${pw}" height="24" rx="12"/>
+    <text class="pt" x="${W / 2}" y="4.5" text-anchor="middle">${pillText}</text>
+    <text class="ct" x="${W / 2}" y="38" text-anchor="middle">${m.name}</text>${desc}</g>`;
+  return `<g class="st${m.locked ? ' locked' : ''}" data-id="${m.id}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${label}">
+    <rect x="-82" y="-126" width="164" height="${160 + H}" fill="transparent"/>
+    <g class="bg">${stickerArt(m, compact)}</g>${mas}${pin}${card}</g>`;
+}
+function renderMap() {
+  const mode = window.matchMedia('(min-width: 1040px)').matches ? 'w' : 'n';
+  if (mode === mapMode) return;
+  mapMode = mode;
+  const roadD = smooth(ROADS[mode]);
+  const svg = document.getElementById('map');
+  svg.setAttribute('viewBox', LAND[mode].vb);
+  svg.innerHTML = `${skyFor(mode)}${landLayer(mode)}${groundFor(mode)}${MODULES.map(patchLayer).join('')}
+    <path class="rd-edge" d="${roadD}"/><path class="rd" d="${roadD}"/>${MODULES.map(topLayer).join('')}`;
+}
+window.matchMedia('(min-width: 1040px)').addEventListener('change', renderMap);
+
+/* ===== Biểu tượng nhỏ cho tab và nút nhanh ===== */
+const ICON = {
+  home: '<path d="M3 11 12 4l9 7v9H3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>',
+  ads: '<path d="M5 20V12M12 20V5M19 20v-9" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>',
+  zh: '<text x="12" y="18.5" text-anchor="middle" font-size="18" font-weight="800" fill="currentColor" font-family="var(--font-han)">學</text>',
+  master: '<path d="M2 9l10-5 10 5-10 5z" fill="currentColor"/><path d="M6 12v5c3 3 9 3 12 0v-5" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  marketing: '<path d="M4 10v4h3l7 4V6L7 10z" fill="currentColor"/><path d="M17 9c1.5 1 1.5 5 0 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  photo: '<path d="M3 8h4l2-3h6l2 3h4v11H3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.4" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  assistant: '<path d="M4 5h16v11H11l-5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>'
+};
+const ico = id => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg>`;
+const flower = () => `<svg viewBox="0 0 20 20"><g fill="var(--pink)" stroke="var(--pink-ink)" stroke-width="1"><circle cx="10" cy="4.5" r="3.4"/><circle cx="15.4" cy="8.6" r="3.4"/><circle cx="13.3" cy="15" r="3.4"/><circle cx="6.7" cy="15" r="3.4"/><circle cx="4.6" cy="8.6" r="3.4"/></g><circle cx="10" cy="10.5" r="2.6" fill="var(--gold)"/></svg>`;
+
+/* ===== Trang từng mục ===== */
+const fmt = n => new Intl.NumberFormat('vi-VN').format(n) + ' đ';
+const VIEWS = {
+  ads() {
+    const folders = CLIENTS.map((c, i) => `<button type="button" class="fd" data-client="${i}"><b>${c.n}</b><span>${c.note}</span><span class="pill ${c.s >= 5 ? 'on' : ''}">${STAGES[c.s]}</span></button>`).join('');
+    const dm = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const left = c => { const d = Math.round((new Date(c.to) - t0) / 864e5); return d < 0 ? 'đã kết thúc' : `còn ${d} ngày`; };
+    const calRows = CLIENTS.map(c => `<tr><td><b>${c.n}</b></td><td>${c.goal}</td><td class="num">${fmt(c.bud)}</td><td>${dm(c.from)} - ${dm(c.to)} <span class="hint-i">(${c.s < 3 ? 'chưa bắt đầu' : left(c)})</span></td></tr>`).join('');
+    const sumOpts = ['Gemini', 'Claude'].map(m => `<option${m === (SEL.sumag || 'Gemini') ? ' selected' : ''}>${m}</option>`).join('');
+    const rows = ADS.map((a, i) => `<tr>
+      <td><input type="checkbox" id="ad${i}" data-ad="${i}" ${a.run ? 'checked' : ''} aria-label="Đã chạy: ${a.name}"></td>
+      <td class="mono">${a.name}</td><td>${a.goal}</td><td class="num">${fmt(a.bud)}</td>
+      <td><span class="pill ${a.run ? 'on' : ''}" id="pill${i}">${a.run ? 'Đang chạy' : 'Chờ duyệt'}</span></td></tr>`).join('');
+    return `
+    <div class="block"><h3>Khách hàng</h3><p class="hint">Mỗi khách một thư mục riêng. Bấm vào thư mục để mở hồ sơ của khách đó.</p>
+      <div class="seg" role="group" aria-label="Chế độ xem"><button type="button" data-tab="all" aria-pressed="true">Tất cả</button><button type="button" data-tab="cal" aria-pressed="false">Check lịch</button></div>
+      <div id="tab-all" class="fgrid">${folders}</div>
+      <div id="tab-cal" class="tablewrap" hidden><table><thead><tr><th>Tên</th><th>Mục tiêu</th><th class="num">Ngân sách</th><th>Thời gian thực hiện</th></tr></thead><tbody>${calRows}</tbody></table></div></div>
+    <div class="block"><h3>Khách mới</h3><p class="hint">Nhập brief và yêu cầu, chọn agent, rồi nhận bản tóm tắt và bản tư vấn kèm bảng giá.</p>
+      <div class="intake">
+        <label for="brief">Brief + yêu cầu của khách</label>
+        <textarea id="brief" rows="5" placeholder="Dán brief của khách vào đây, mỗi ý một dòng..."></textarea>
+        <div class="row"><label for="sumag">Agent thực hiện</label><select id="sumag" data-mk="sumag">${sumOpts}</select><button type="button" class="btn" id="sum">Tóm tắt yêu cầu</button></div>
+        <div id="sumOut" hidden></div>
+      </div></div>
+    <div class="block"><h3>Sổ ads Meta</h3><p class="hint">Chốt khách xong là tạo sổ. Ads nào lên là tick vào ô "Chạy".</p>
+      <div class="tablewrap"><table><thead><tr><th>Chạy</th><th>Tên ads (Khách_Mục tiêu_Tệp_Content_Ngày)</th><th>Mục tiêu</th><th class="num">Ngân sách/ngày</th><th>Trạng thái</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="block"><h3>Tính phí quản lý</h3><p class="hint">Phí của bạn là 10-20% ngân sách ads của khách.</p>
+      <div class="calc">
+        <label for="bud">Ngân sách ads của khách (đ/tháng)</label>
+        <input type="number" id="bud" min="0" step="1000000" value="20000000">
+        <label for="pct">Mức phí: <span id="pctv">15</span>%</label>
+        <input type="range" id="pct" min="10" max="20" step="1" value="15">
+        <p class="out">Phí: <span id="fee"></span></p>
+      </div></div>
+    ${agentsBlock('ag', AGENTS, 'Mỗi agent có hướng dẫn riêng và dùng model bạn chọn.')}`;
+  },
+  zh() {
+    return `
+    <div class="tiles">
+      <div class="tile"><b>12</b><span>từ cần ôn hôm nay</span></div>
+      <div class="tile"><b>Marketing</b><span>bộ từ vựng ngành</span></div>
+      <div class="tile"><b>TOCFL</b><span>đề và bài luyện</span></div>
+    </div>
+    <div class="block"><h3>Thẻ từ mẫu<span class="tag">ví dụ</span></h3><p class="hint">Agent từ vựng sẽ tạo thẻ theo khuôn này khi bạn gửi một từ.</p>
+      <article class="vocab">
+        <div class="vhead"><span class="big">廣告</span><span class="alt">广告 <small>giản thể</small></span></div>
+        <p class="py">guǎnggào · danh từ</p>
+        <p class="mean">Quảng cáo</p>
+        <dl>
+          <dt>Cấu tạo chữ phồn thể</dt><dd><span class="han">廣</span> = <span class="han">广</span> (mái nhà) + <span class="han">黃</span> (vàng) · <span class="han">告</span> = <span class="han">牛</span> (bò) + <span class="han">口</span> (miệng)</dd>
+          <dt>Đồng nghĩa</dt><dd><span class="han">宣傳</span> xuānchuán (quảng bá, tuyên truyền)</dd>
+          <dt>Trái nghĩa</dt><dd>Không có cặp trái nghĩa rõ ràng</dd>
+          <dt>Cụm hay gặp</dt><dd><span class="han">打廣告</span> dǎ guǎnggào (chạy quảng cáo) · <span class="han">廣告費</span> guǎnggào fèi (chi phí quảng cáo) · <span class="han">廣告商</span> guǎnggào shāng (nhà quảng cáo)</dd>
+        </dl>
+      </article></div>`;
+  },
+  master() {
+    const rows = SCHOOLS.map((s, i) => `<div class="school"><div><b class="han">${s[0]}</b><p>${s[1]}</p></div>
+      <div class="ctl"><label class="sr" for="dl${i}">Hạn nộp ${s[0]}</label><input type="date" id="dl${i}">
+      <label class="sr" for="st${i}">Tiến độ ${s[0]}</label><select id="st${i}"><option>Chưa bắt đầu</option><option>Đang soạn</option><option>Đã nộp</option></select></div></div>`).join('');
+    return `<div class="block"><h3>Các trường đang nộp</h3><p class="hint">Nhập hạn nộp để trang chủ đếm ngược và nhắc trước.</p><div class="schools">${rows}</div></div>`;
+  },
+  assistant() {
+    return `<div class="block"><h3>Hỏi bất cứ gì</h3><p class="hint">Trợ lý đọc câu hỏi rồi chuyển đến đúng mục. Mục này mở sau cùng, khi đã có 2-3 mục chạy ổn.</p>
+      <div class="chat"><div class="row"><label class="sr" for="ask">Câu hỏi</label><input type="text" id="ask" placeholder="Ví dụ: tuần này khách nào cần báo cáo?" disabled><button type="button" disabled>Gửi</button></div>
+      <div class="route"><div>"Báo cáo tuần của Shop mẫu E" <span>→ Ads cho khách</span></div><div>"Giải nghĩa từ 行銷" <span>→ Tiếng Trung</span></div><div>"Hạn nộp trường nào gần nhất?" <span>→ Hồ sơ thạc sĩ</span></div></div></div></div>`;
+  }
+};
+
+/* ===== Chọn model cho agent ở mọi mục ===== */
+const SEL = {};
+function agentsBlock(key, list, hint) {
+  const cards = list.map((a, i) => {
+    const id = key + i, cur = SEL[id] || a[2] || 'Gemini';
+    const opts = ['Gemini', 'Claude'].map(m => `<option${m === cur ? ' selected' : ''}>${m}</option>`).join('');
+    return `<div class="agent"><b>${a[0]}</b><span>${a[1]}</span><label class="sr" for="${id}">Model của agent ${a[0]}</label><select id="${id}" data-mk="${id}">${opts}</select></div>`;
+  }).join('');
+  return `<div class="block"><h3>Các agent của mục này<span class="tag">chọn model cho từng agent</span></h3><p class="hint">${hint}</p><div class="agents">${cards}</div></div>`;
+}
+const MODAGENTS = {
+  zh: [['Giải nghĩa từ', 'Nhận từ bạn gửi, trả thẻ đủ nghĩa, pinyin, tách chữ, đồng nghĩa, trái nghĩa, cụm.'], ['Ôn tập', 'Tạo bài ôn và đề luyện TOCFL từ các từ đã học.']],
+  master: [['Soạn hồ sơ', 'Giúp viết và sửa tự truyện, kế hoạch học tập theo từng trường.'], ['Nhắc hạn nộp', 'Theo dõi hạn nộp và việc còn thiếu của từng trường.']],
+  marketing: [['Lập kế hoạch', 'Đề xuất plan, lịch nội dung và mục tiêu.'], ['Viết nội dung', 'Viết bài, caption và ý tưởng cho brand.'], ['Báo cáo tăng trưởng', 'Đọc số liệu và viết nhận xét.']],
+  photo: [['Sắp lịch chụp', 'Gom lịch, địa điểm và yêu cầu của khách.'], ['Chọn và chỉnh ảnh', 'Gợi ý ảnh nên chọn và ghi chú chỉnh sửa.']],
+  assistant: [['Điều phối', 'Đọc câu hỏi rồi chuyển đúng mục và đúng agent.']]
+};
+VIEWS.marketing = () => `
+  <div class="tiles"><div class="tile"><b>Plan</b><span>kế hoạch và mục tiêu</span></div><div class="tile"><b>Content</b><span>ý tưởng, bài viết, lịch đăng</span></div><div class="tile"><b>Brand</b><span>giọng điệu, hình ảnh</span></div><div class="tile"><b>Growth</b><span>số liệu và tăng trưởng</span></div></div>
+  <div class="block"><h3>Việc marketing đang theo<span class="tag">ví dụ</span></h3><p class="hint">Mỗi job marketing một thư mục riêng, theo bốn nhóm Plan, Content, Brand, Growth.</p>
+    <div class="tablewrap"><table><thead><tr><th>Job</th><th>Nhóm</th><th>Trạng thái</th></tr></thead><tbody><tr><td><b>Job mẫu 1</b></td><td>Plan</td><td><span class="pill">Đang soạn</span></td></tr><tr><td><b>Job mẫu 2</b></td><td>Content</td><td><span class="pill on">Đang chạy</span></td></tr></tbody></table></div></div>`;
+VIEWS.photo = () => `
+  <div class="tiles"><div class="tile"><b>2</b><span>buổi chụp tuần này</span></div><div class="tile"><b>1</b><span>bộ ảnh chờ chỉnh</span></div><div class="tile"><b>1</b><span>bộ ảnh chờ giao</span></div></div>
+  <div class="block"><h3>Lịch chụp<span class="tag">ví dụ</span></h3><p class="hint">Mỗi job chụp một thư mục: yêu cầu, lịch, ảnh gốc, ảnh đã chỉnh.</p>
+    <div class="tablewrap"><table><thead><tr><th>Job</th><th>Ngày chụp</th><th>Trạng thái</th></tr></thead><tbody><tr><td><b>Job mẫu A</b></td><td>Thứ Bảy</td><td><span class="pill">Chờ chụp</span></td></tr><tr><td><b>Job mẫu B</b></td><td>Tuần trước</td><td><span class="pill on">Đang chỉnh ảnh</span></td></tr></tbody></table></div></div>`;
+['zh', 'master', 'assistant', 'marketing', 'photo'].forEach(k => {
+  const f = VIEWS[k];
+  VIEWS[k] = () => f() + agentsBlock(k, MODAGENTS[k], 'Mỗi mục có agent riêng, bạn chọn model cho từng agent.');
+});
+
+/* ===== Hồ sơ riêng từng khách ===== */
+const FOLDERS = [
+  ['00_Thong-tin', 'Hợp đồng, liên hệ, ghi chú quyền tài khoản ads', 'Chỉ bạn', 'Không agent nào'],
+  ['01_Brief', 'Brief và yêu cầu của khách', 'Agent Tiếp nhận', 'Agent Chiến lược'],
+  ['02_Tu-van', 'Tư vấn v1, v2... và bảng giá', 'Agent Chiến lược, bạn duyệt', 'Bạn, khách (bản đã duyệt)'],
+  ['03_Ke-hoach-setup', 'Kế hoạch chi tiết, cấu trúc chiến dịch', 'Agent Chiến lược, Tracking', 'Agent Nội dung'],
+  ['04_So-ads-Meta', 'Danh sách ads, ô tick đã chạy', 'Bạn, agent Nội dung', 'Agent Tracking, Báo cáo'],
+  ['05_Bao-cao', 'Báo cáo tuần kèm nhận xét', 'Agent Báo cáo', 'Bạn, khách (bản đã duyệt)'],
+  ['06_Nhat-ky-toi-uu', 'Đổi gì, ngày nào, kết quả ra sao', 'Bạn, agent Báo cáo', 'Agent Báo cáo']
+];
+VIEWS.client = function (i) {
+  const c = CLIENTS[i], s = c.s;
+  const has = [true, true, s >= 1, s >= 3, s >= 4, s >= 5, s >= 6];
+  const rows = FOLDERS.map((f, k) => `<div class="folder"><div class="fh"><b class="mono">${f[0]}</b><span class="pill ${has[k] ? 'on' : ''}" id="fp${k}">${has[k] ? 'Có file' : 'Trống'}</span><a class="pill on" id="fl${k}" target="_blank" rel="noopener"${link(c.links && c.links[f[0]]) ? ` href="${link(c.links[f[0]])}"` : ' hidden'}>Mở Drive ↗</a>${f[3].includes('khách') ? '<span class="pill on">Gửi được cho khách</span>' : ''}</div>
+    <p>${f[1]}</p><dl><div><dt>Ghi</dt><dd>${f[2]}</dd></div><div><dt>Đọc</dt><dd>${f[3]}</dd></div></dl></div>`).join('');
+  const review = s >= 5 ? `<div class="block"><h3>Nhận xét của agent Báo cáo<span class="tag">ví dụ</span></h3>
+    <div class="review"><span class="pill">Bản nháp, chờ bạn duyệt</span>
+      <p>Agent đọc số liệu tuần trong <span class="mono">04_So-ads-Meta</span> rồi viết nhận xét vào <span class="mono">05_Bao-cao</span>:</p>
+      <ul><li>Mẫu Video01 đang cho chi phí mỗi tin nhắn tốt hơn Ảnh02.</li><li>Nhóm Lookalike còn trong giai đoạn học, chưa nên chỉnh lớn.</li><li>Đề xuất: tăng nhẹ ngân sách Video01, giữ nguyên Ảnh02 thêm 3 ngày rồi xem lại.</li></ul>
+      <p class="hint">Bạn sửa và duyệt xong mới gửi cho khách. Mọi thay đổi ghi vào <span class="mono">06_Nhat-ky-toi-uu</span>.</p></div></div>` : '';
+  return `<div class="iso"><b>Tách riêng theo khách</b>
+      <p>Agent làm việc cho ${c.n} chỉ đọc và ghi trong 7 thư mục dưới đây. Dữ liệu của khách khác không lẫn vào.</p>
+      <p>Sau này khi cho khách đăng nhập, ${c.n} chỉ thấy bản tư vấn và báo cáo đã duyệt của chính họ.</p>
+      <p id="drvStat">${driveStatus(c)}</p>
+      <div class="drvact">${link(c.drive) ? `<a class="btn" href="${link(c.drive)}" target="_blank" rel="noopener">Mở thư mục Drive của ${c.n} ↗</a>` : ''}${Drive.configured() ? `<button class="btn" type="button" id="drvSync" data-sync="${i}">${Drive.connected() ? 'Đồng bộ thư mục Drive' : 'Kết nối và tạo thư mục trên Drive'}</button>` : ''}</div></div>
+    <div class="block"><h3>Thư mục của ${c.n}</h3><p class="hint">Mỗi thư mục ghi rõ ai được ghi và ai được đọc.</p><div class="folders">${rows}</div></div>${review}`;
+};
+
+/* ===== Điều hướng kiểu trình duyệt: lùi, tiến, tải lại, thanh địa chỉ ===== */
+const $ = id => document.getElementById(id);
+const BASE = location.origin + location.pathname.replace(/index\.html$/, '').replace(/\/$/, '');
+const slugify = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const hist = []; let hi = -1, cur = { m: null, c: null }, tm;
+function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(tm); tm = setTimeout(() => { el.hidden = true; }, 2800); }
+
+function render(v, focus) {
+  cur = v;
+  const home = !v.m, m = MODULES.find(x => x.id === v.m);
+  $('homeView').hidden = !home; $('modView').hidden = home;
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.go === (v.m || 'home'))));
+  const route = home ? '' : m.slug + (v.c != null ? '/' + slugify(CLIENTS[v.c].n) : '');
+  $('url').textContent = BASE + '/' + (route ? '#/' + route : '');
+  if (location.hash.replace(/^#\/?/, '') !== route) history.replaceState(null, '', route ? '#/' + route : location.pathname);
+  if (!home) {
+    if (v.c != null) {
+      $('modTitle').textContent = CLIENTS[v.c].n; $('modSub').textContent = 'Hồ sơ riêng, giai đoạn: ' + STAGES[CLIENTS[v.c].s];
+      $('modBody').innerHTML = VIEWS.client(v.c); $('crumb').textContent = '← Danh sách khách';
+      if (Drive.connected()) syncClient(v.c, false);
+    } else {
+      $('modTitle').textContent = m.title; $('modSub').textContent = m.sub;
+      $('modBody').innerHTML = VIEWS[m.id](); $('crumb').textContent = '← Về bản đồ';
+      if (m.id === 'ads') calc();
+    }
+  }
+  $('modImg').innerHTML = home ? '' : stk(v.c != null ? 'client' : (STK[v.m] ? v.m : 'assistant'), 'mst');
+  $('nBack').disabled = hi <= 0; $('nFwd').disabled = hi >= hist.length - 1;
+  if (focus !== false) { window.scrollTo(0, 0); (home ? $('tabbar').querySelector('[aria-selected="true"]') : $('modTitle')).focus({ preventScroll: true }); }
+}
+function go(v) {
+  if (v.m) { const m = MODULES.find(x => x.id === v.m); if (m && m.locked) { toast('Mục này chưa mở.'); return; } }
+  hist.splice(hi + 1); hist.push(v); hi = hist.length - 1; render(v);
+}
+const goBack = () => { if (hi > 0) { hi--; render(hist[hi]); } };
+const goFwd = () => { if (hi < hist.length - 1) { hi++; render(hist[hi]); } };
+
+/* ===== Dựng khung trang ===== */
+const now = new Date();
+const dow = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][now.getDay()];
+const total = MODULES.reduce((s, m) => s + m.badge, 0);
+const waiting = CLIENTS.filter(c => c.s <= 2).length, unsent = SCHOOLS.length;
+const open = MODULES.filter(m => !m.locked);
+
+$('tabbar').innerHTML = `<span class="logo" aria-hidden="true">${stk('logo', 'lg')}</span>` +
+  [{ id: 'home', name: 'Trang chủ' }, ...open.map(m => ({ id: m.id, name: m.name }))]
+    .map(t => `<button class="tab" role="tab" type="button" data-go="${t.id}" aria-selected="false">${ico(t.id)}<span>${t.name}</span></button>`).join('');
+$('qgrid').innerHTML = open.map(m => `<button class="qb q-${m.id}" type="button" data-go="${m.id}" aria-label="${m.title}">${ico(m.id)}<span>${m.name}</span></button>`).join('');
+$('flw').innerHTML = Array.from({ length: 12 }, flower).join('');
+$('avatar').innerHTML = stk('avatar', 'av', 'Linh vật của Khanh');
+$('sToday').textContent = `${dow}, ${now.getDate()}/${now.getMonth() + 1}`;
+$('sOpen').textContent = `${open.length} mục`;
+$('sPend').textContent = total;
+$('notes').innerHTML = [
+  ['chờ:', `${waiting} khách đang chờ bạn (mới, đã gửi tư vấn, đang sửa).`],
+  ['ôn:', '12 từ tiếng Trung cần ôn hôm nay.'],
+  ['hạn:', `${unsent} hồ sơ thạc sĩ chưa nhập hạn nộp.`],
+  ['drive:', '<span id="drvNote"></span>']
+].map(r => `<div class="nrow"><b class="lab">${r[0]}</b><span>${r[1]}</span></div>`).join('');
+
+/* ===== Tương tác ===== */
+function calc() {
+  const b = $('bud'), p = $('pct'); if (!b || !p) return;
+  $('pctv').textContent = p.value; $('fee').textContent = fmt(Math.round((+b.value || 0) * p.value / 100));
+}
+const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+function setTab(t) {
+  $('tab-all').hidden = t !== 'all'; $('tab-cal').hidden = t !== 'cal';
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
+}
+function summarize() {
+  const t = $('brief').value.trim();
+  if (!t) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
+  const lines = t.split(/\n+/).map(s => s.trim()).filter(Boolean).slice(0, 6), ag = $('sumag').value;
+  $('sumOut').hidden = false;
+  $('sumOut').innerHTML = `<div class="sum"><span class="tag" style="margin-left:0;justify-self:start">mô phỏng, chưa nối AI</span><h4>Tóm tắt yêu cầu</h4>
+    <ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    <p class="hint" style="margin:0">Khi nối ${ag}, đây là bản mô tả do agent viết. Agent sẽ tổng hợp thành bản Google Docs (tư vấn và bảng giá) lưu vào thư mục 02_Tu-van của khách. Bạn sửa, duyệt rồi mới gửi.</p></div>`;
+}
+
+document.getElementById('map').addEventListener('click', e => { const s = e.target.closest('[data-id]'); if (s) go({ m: s.dataset.id, c: null }); });
+document.getElementById('map').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const s = e.target.closest('.st'); if (s) { e.preventDefault(); go({ m: s.dataset.id, c: null }); }
+});
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if (g) { go(g.dataset.go === 'home' ? { m: null, c: null } : { m: g.dataset.go, c: null }); }
+});
+$('nBack').addEventListener('click', goBack);
+$('nFwd').addEventListener('click', goFwd);
+$('nReload').addEventListener('click', () => render(cur, false));
+$('crumb').addEventListener('click', () => go(cur.c != null ? { m: cur.m, c: null } : { m: null, c: null }));
+$('drive').addEventListener('click', openDrive);
+$('todayBtn').addEventListener('click', () => { go({ m: null, c: null }); $('notes').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+$('modBody').addEventListener('click', e => {
+  const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
+  const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
+  if (e.target.closest('#sum')) summarize();
+  const sy = e.target.closest('[data-sync]'); if (sy) syncClient(+sy.dataset.sync, true);
+});
+$('modBody').addEventListener('input', e => { if (e.target.id === 'bud' || e.target.id === 'pct') calc(); });
+$('modBody').addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.mk) { SEL[e.target.dataset.mk] = e.target.value; return; }
+  const i = e.target.dataset && e.target.dataset.ad; if (i === undefined) return;
+  const on = e.target.checked, pill = $('pill' + i); ADS[i].run = on;
+  pill.textContent = on ? 'Đang chạy' : 'Chờ duyệt'; pill.classList.toggle('on', on);
+});
+
+/* ===== Google Drive ===== */
+// Chỉ nhận link https để tránh chèn mã lạ vào trang
+function link(u) { return /^https:\/\/[^"<>\s]+$/.test(u || '') ? u : ''; }
+function driveStatus(c) {
+  if (!Drive.configured()) return c && link(c.drive) ? 'Google Drive: đã gắn link thư mục của khách.' : 'Google Drive: chưa gắn link. Dán link thư mục Drive vào ô drive của khách trong assets/app.js.';
+  return Drive.connected() ? 'Google Drive: đã kết nối. Trạng thái thư mục bên dưới lấy từ Drive.' : 'Google Drive: chưa kết nối. Bấm nút dưới để tạo sẵn 7 thư mục của khách trong Drive của bạn.';
+}
+function refreshDriveNote() {
+  const n = $('drvNote'); if (!n) return;
+  n.textContent = !Drive.configured() ? 'Google Drive chưa cấu hình. Xem README để lấy Client ID.'
+    : Drive.connected() ? 'Đã kết nối Google Drive. Mỗi khách có một thư mục riêng ở đó.'
+    : 'Google Drive chưa kết nối. Bấm nút Google Drive ở trên để đăng nhập.';
+}
+async function openDrive() {
+  if (!Drive.configured()) { window.open('https://drive.google.com/', '_blank', 'noopener'); toast('Chưa cấu hình Client ID nên chỉ mở Google Drive.'); return; }
+  const w = window.open('about:blank', '_blank'); // mở trước để trình duyệt không chặn popup
+  try {
+    if (!Drive.connected()) await Drive.connect(false);
+    const id = await Drive.root();
+    refreshDriveNote();
+    if (w) w.location = Drive.folderUrl(id); else window.open(Drive.folderUrl(id), '_blank', 'noopener');
+  } catch (err) { if (w) w.close(); toast(err.message); }
+}
+async function syncClient(i, interactive) {
+  const btn = $('drvSync'), stat = $('drvStat');
+  try {
+    if (!Drive.connected()) { if (!interactive) return; await Drive.connect(false); }
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang đồng bộ...'; }
+    const m = MODULES.find(x => x.id === 'ads');
+    const res = await Drive.ensureClient(m.title, CLIENTS[i].n, FOLDERS.map(f => f[0]));
+    const counts = await Drive.countFiles(res.subs.map(s => s.id));
+    if (cur.c !== i) return; // người dùng đã chuyển trang
+    res.subs.forEach((s, k) => {
+      const n = counts[s.id], p = $('fp' + k), a = $('fl' + k);
+      if (p) { p.textContent = n ? `${n} file` : 'Trống'; p.classList.toggle('on', n > 0); }
+      if (a) { a.href = Drive.folderUrl(s.id); a.hidden = false; }
+    });
+    if (stat) stat.innerHTML = `Google Drive: đã kết nối. <a href="${Drive.folderUrl(res.id)}" target="_blank" rel="noopener">Mở thư mục ${esc(CLIENTS[i].n)} ↗</a>`;
+    refreshDriveNote();
+    if (interactive) toast('Đã đồng bộ thư mục Drive của ' + CLIENTS[i].n + '.');
+  } catch (err) { toast(err.message); }
+  finally { if (btn && cur.c === i) { btn.disabled = false; btn.textContent = 'Đồng bộ thư mục Drive'; } }
+}
+
+/* ===== Đọc đường dẫn #/slug/khach khi mở link trực tiếp ===== */
+function fromHash() {
+  const [slug, cl] = location.hash.replace(/^#\/?/, '').split('/');
+  const m = MODULES.find(x => x.slug === slug && !x.locked);
+  if (!m) return { m: null, c: null };
+  const c = cl ? CLIENTS.findIndex(x => slugify(x.n) === cl) : -1;
+  return { m: m.id, c: m.id === 'ads' && c >= 0 ? c : null };
+}
+window.addEventListener('hashchange', () => { const v = fromHash(); if (v.m !== cur.m || v.c !== cur.c) go(v); });
+
+renderMap();
+hist.push(fromHash()); hi = 0; render(hist[0], false);
+refreshDriveNote();
