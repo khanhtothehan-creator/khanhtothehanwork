@@ -59,6 +59,18 @@ Muốn tự lấy số liệu:
   và thêm một dòng vào tab "Phân tích ads" của Google Sheet (chi tiêu, CTR, CPM, kết quả, đề xuất...).
 - Google Sheet tên **Khanh's Work Space - Phân tích ads** nằm trong thư mục `Khanh's Work Space` trên Drive.
 
+## Quy trình trong hồ sơ khách (00 → 05)
+Mở **Job chạy ads → bấm vào khách**. Mỗi bước là một thư mục trên Drive (chưa có thì AI tự tạo
+`Khanh's Work Space/Job chạy ads/<Tên khách>/00..05`), file tạo ra hiện ngay dưới bước đó:
+1. **01_Brief:** gõ brief → **Gửi agent**. Brief được lưu vào `01_Brief`, bản tư vấn + báo giá vào `02_Tu-van`.
+2. **02_Tu-van:** sửa bản tư vấn trong Google Docs (gửi khách duyệt) → **Đã sửa xong → tạo kế hoạch**.
+   Agent đọc file Google Docs sửa gần nhất trong `02_Tu-van`, viết kế hoạch setup vào `03_Ke-hoach-setup`.
+3. **04_So-ads-Meta:** nhập ID tài khoản quảng cáo (`act_...`), chọn khoảng thời gian → **Lấy số liệu Meta**.
+   Web hiện số liệu tài khoản + từng chiến dịch; mỗi lần lấy được thêm vào Google Sheet `Số liệu Meta - <khách>` trong `04_So-ads-Meta`.
+   Cần `META_TOKEN` (Bước 5). Chưa có token: dán số liệu xuất từ Ads Manager vào ô "Chưa có token Meta?".
+4. **05_Bao-cao:** **Tạo báo cáo + đề xuất chỉnh sửa**: dùng số liệu 04, đối chiếu kế hoạch mới nhất trong 03,
+   (chế độ đa tác tử: agent Kiểm duyệt soát lại), lưu báo cáo vào `05_Bao-cao` và thêm một dòng vào tab "Báo cáo tài khoản" của Google Sheet chung.
+
 ## Đa tác tử
 Ô **Cách chạy** trên web có 2 chế độ:
 - **Đa tác tử** (mặc định):

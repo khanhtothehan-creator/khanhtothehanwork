@@ -39,7 +39,8 @@ const AGENTS = [
   ['Tracking', 'Tạo checklist Pixel, sự kiện, UTM theo kênh nhận khách.', 'Gemini', 'tracking'],
   ['Tổng hợp', 'Ghép kết quả thành bản tư vấn và báo giá gửi khách.', 'Gemini', 'tong_hop'],
   ['Báo cáo', 'Đọc số liệu ads, đánh giá và đề xuất tối ưu.', 'Gemini', 'bao_cao'],
-  ['Kiểm duyệt', 'Soát báo cáo: số liệu bịa, mâu thuẫn, đề xuất rủi ro.', 'Gemini', 'kiem_duyet']
+  ['Kiểm duyệt', 'Soát báo cáo: số liệu bịa, mâu thuẫn, đề xuất rủi ro.', 'Gemini', 'kiem_duyet'],
+  ['Kế hoạch', 'Đọc bản tư vấn đã sửa, lập kế hoạch setup chi tiết.', 'Gemini', 'ke_hoach']
 ];
 const SCHOOLS = [
   ['政大 NCCU', 'Global Communication and Innovation Technology (GCIT)'],
@@ -335,15 +336,18 @@ VIEWS.photo = () => `
 });
 
 /* ===== Hồ sơ riêng từng khách ===== */
+/* Thư mục của mỗi khách = các bước làm việc: [tên thư mục, việc ở bước này] */
 const FOLDERS = [
-  ['00_Thong-tin', 'Hợp đồng, liên hệ, ghi chú quyền tài khoản ads', 'Chỉ bạn', 'Không agent nào'],
-  ['01_Brief', 'Brief và yêu cầu của khách', 'Agent Tiếp nhận', 'Agent Chiến lược'],
-  ['02_Tu-van', 'Tư vấn v1, v2... và bảng giá', 'Agent Chiến lược, bạn duyệt', 'Bạn, khách (bản đã duyệt)'],
-  ['03_Ke-hoach-setup', 'Kế hoạch chi tiết, cấu trúc chiến dịch', 'Agent Chiến lược, Tracking', 'Agent Nội dung'],
-  ['04_So-ads-Meta', 'Danh sách ads, ô tick đã chạy', 'Bạn, agent Nội dung', 'Agent Tracking, Báo cáo'],
-  ['05_Bao-cao', 'Báo cáo tuần kèm nhận xét', 'Agent Báo cáo', 'Bạn, khách (bản đã duyệt)'],
-  ['06_Nhat-ky-toi-uu', 'Đổi gì, ngày nào, kết quả ra sao', 'Bạn, agent Báo cáo', 'Agent Báo cáo']
+  ['00_Thong-tin', 'Hợp đồng, liên hệ, quyền tài khoản ads. Chỉ bạn xem.'],
+  ['01_Brief', 'Nhập brief của khách, agent phân tích và viết bản tư vấn vào 02_Tu-van.'],
+  ['02_Tu-van', 'Bản tư vấn + báo giá. Bạn sửa trong Google Docs, xong thì tạo kế hoạch.'],
+  ['03_Ke-hoach-setup', 'Kế hoạch setup chi tiết, làm từ bản tư vấn đã sửa.'],
+  ['04_So-ads-Meta', 'Số liệu Meta Ads của tài khoản và từng chiến dịch.'],
+  ['05_Bao-cao', 'Báo cáo, đánh giá và đề xuất chỉnh sửa từ số liệu 04.']
 ];
+const RANGE_OPTS = [['last_7d', '7 ngày qua'], ['last_14d', '14 ngày qua'], ['last_30d', '30 ngày qua'], ['this_month', 'Tháng này'], ['last_month', 'Tháng trước'], ['maximum', 'Từ trước đến nay']];
+const OUT = {}; // kết quả vừa chạy của từng bước, giữ lại khi trang vẽ lại
+const num = n => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(+n || 0);
 /* ===== Ads Meta: một dòng ads (dùng ở Sổ ads và hồ sơ khách) ===== */
 const VERDICT = { 'Tốt': 'on', 'Ổn': 'on', 'Cần tối ưu': '', 'Kém': 'bad', 'Chưa đủ dữ liệu': '' };
 function adRow(ci, ai, showClient) {
@@ -379,39 +383,51 @@ function md(t) {
 }
 
 VIEWS.client = function (i) {
-  const c = CLIENTS[i], s = c.s;
+  const c = CLIENTS[i], s = c.s, n = esc(c.n);
   const lk = f => link(c.links && c.links[f]);
-  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">📄 ${esc(d.title)}</a></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
-  const rows = FOLDERS.map((f, k) => `<div class="folder"><div class="fh"><b class="mono">${f[0]}</b><span class="pill ${lk(f[0]) ? 'on' : ''}" id="fp${k}">${lk(f[0]) ? 'Đã gắn link' : 'Chưa gắn link'}</span><a class="pill on" id="fl${k}" target="_blank" rel="noopener"${lk(f[0]) ? ` href="${lk(f[0])}"` : ' hidden'}>Mở Drive ↗</a>${f[3].includes('khách') ? '<span class="pill on">Gửi được cho khách</span>' : ''}</div>
-    <p>${f[1]}</p>${docsIn(f[0])}<dl><div><dt>Ghi</dt><dd>${f[2]}</dd></div><div><dt>Đọc</dt><dd>${f[3]}</dd></div></dl>
-    <input class="flink" type="url" data-flink="${f[0]}" value="${esc(lk(f[0]))}" placeholder="Dán link thư mục ${f[0]} (không bắt buộc)" aria-label="Link Drive của ${f[0]}"></div>`).join('');
+  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">📄 ${esc(d.title)}</a> <span class="hint-i">${esc(d.t)}</span></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
+  const out = k => `<div class="stepout" id="out-${k}"${OUT[i + ':' + k] ? '' : ' hidden'}>${OUT[i + ':' + k] || ''}</div>`;
   const stageOpts = STAGES.map((t, k) => `<option value="${k}"${k === s ? ' selected' : ''}>${t}</option>`).join('');
-  const review = s >= 5 ? `<div class="block"><h3>Nhận xét của agent Báo cáo<span class="tag">ví dụ</span></h3>
-    <div class="review"><span class="pill">Bản nháp, chờ bạn duyệt</span>
-      <p>Agent đọc số liệu tuần trong <span class="mono">04_So-ads-Meta</span> rồi viết nhận xét vào <span class="mono">05_Bao-cao</span>:</p>
-      <ul><li>Mẫu Video01 đang cho chi phí mỗi tin nhắn tốt hơn Ảnh02.</li><li>Nhóm Lookalike còn trong giai đoạn học, chưa nên chỉnh lớn.</li><li>Đề xuất: tăng nhẹ ngân sách Video01, giữ nguyên Ảnh02 thêm 3 ngày rồi xem lại.</li></ul>
-      <p class="hint">Bạn sửa và duyệt xong mới gửi cho khách. Mọi thay đổi ghi vào <span class="mono">06_Nhat-ky-toi-uu</span>.</p></div></div>` : '';
-  const n = esc(c.n);
+  const rangeOpts = RANGE_OPTS.map(o => `<option value="${o[0]}"${(c.metaRange || 'last_7d') === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('');
+  const has02 = (c.docs || []).some(d => d.sub === '02_Tu-van') || lk('02_Tu-van');
+  const m = c.meta;
+  const metaView = m ? `<p class="hint">Lấy lúc ${esc(m.t)} · ${esc(m.account.range_label)} · ${esc(m.account.name)} (${esc(m.account.id)}) · tiền tệ ${esc(m.account.currency)}${m.sheet ? ` · <a href="${link(m.sheet)}" target="_blank" rel="noopener">Google Sheet số liệu ↗</a>` : ''}</p>
+    <div class="kpis">${[['Chi tiêu', num(m.account.spend)], ['Hiển thị', num(m.account.impressions)], ['Tiếp cận', num(m.account.reach)], ['Click', num(m.account.clicks)], ['CTR', num(m.account.ctr) + '%'], ['CPM', num(m.account.cpm)], ['Kết quả', m.account.results || 'chưa có']].map(k => `<div><span>${k[0]}</span><b>${esc(k[1])}</b></div>`).join('')}</div>
+    <div class="tablewrap"><table><thead><tr><th>Chiến dịch</th><th>Trạng thái</th><th class="num">Chi tiêu</th><th class="num">Hiển thị</th><th class="num">CTR</th><th class="num">CPM</th><th>Kết quả</th><th class="num">Chi phí/KQ</th></tr></thead><tbody>
+    ${m.campaigns.map(x => `<tr><td><b>${esc(x.name)}</b><br><span class="hint-i">${esc(x.objective || '')}${x.budget ? ' · ' + esc(x.budget) : ''}</span></td><td><span class="pill ${x.status === 'ACTIVE' ? 'on' : ''}">${esc(x.status)}</span></td><td class="num">${num(x.spend)}</td><td class="num">${num(x.impressions)}</td><td class="num">${num(x.ctr)}%</td><td class="num">${num(x.cpm)}</td><td>${num(x.results)} ${esc(x.result_label)}</td><td class="num">${x.results ? num(x.cost_per_result) : '-'}</td></tr>`).join('') || '<tr><td colspan="8">Không có chiến dịch nào chạy trong khoảng này.</td></tr>'}
+    </tbody></table></div>` : '';
+  const head = (k, f) => `<div class="sth"><span class="stn">${k}</span><b class="mono">${f}</b>${lk(f) ? `<a class="pill on" href="${lk(f)}" target="_blank" rel="noopener">Mở thư mục ↗</a>` : '<span class="pill">Chưa có thư mục</span>'}</div>`;
+  const linkBox = f => `<details class="flinkbox"><summary>Link thư mục ${f}</summary><input class="flink" type="url" data-flink="${f}" value="${esc(lk(f))}" placeholder="Dán link thư mục ${f} (để trống thì AI tự tạo)" aria-label="Link Drive của ${f}"></details>`;
+  const step = (k, extra) => { const f = FOLDERS[k]; return `<div class="step">${head('0' + k, f[0])}<p class="hint">${f[1]}</p>${extra || ''}${docsIn(f[0])}${linkBox(f[0])}</div>`; };
   return `<div class="iso"><b>Thư mục Drive của ${n}</b>
-      ${link(c.drive) ? `<div class="drvact"><a class="btn" href="${link(c.drive)}" target="_blank" rel="noopener">Mở thư mục Drive của ${n} ↗</a></div>
-      <a class="dl" href="${link(c.drive)}" target="_blank" rel="noopener">${esc(c.drive)}</a>` : `<p>Chưa có link. Tạo thư mục cho khách trên Google Drive, copy link rồi dán vào ô dưới.</p>`}
-      <div class="row"><input type="url" id="clDrive" value="${esc(link(c.drive))}" placeholder="https://drive.google.com/drive/folders/..." aria-label="Link thư mục Drive của ${n}"><button class="btn" type="button" id="clDriveSave">${link(c.drive) ? 'Lưu link mới' : 'Lưu link'}</button></div>
-      <p id="drvStat" class="hint">${driveStatus(c)}</p>
-      ${Drive.configured() ? `<div class="drvact"><button class="btn" type="button" id="drvSync" data-sync="${i}">${Drive.connected() ? 'Đồng bộ thư mục Drive' : 'Kết nối và tạo thư mục trên Drive'}</button></div>` : ''}</div>
-    <div class="block"><h3>Ads Meta của ${n}</h3><p class="hint">Dán link ads từ Ads Manager. Bấm tên ads để mở ads đó, bấm <b>Phân tích</b> để AI tự tạo file phân tích (lưu vào 05_Bao-cao) và cập nhật Google Sheet.</p>
-      <div class="adlist">${(c.ads || []).map((a, ai) => adRow(i, ai, false)).join('') || '<p class="hint">Chưa có ads nào.</p>'}</div>
-      <form id="adForm" class="clform">
-        <h4>+ Thêm ads</h4>
-        <div class="two"><label>Tên ads<input type="text" name="name" maxlength="120" placeholder="VD: ShopA_Mess_Broad_Video01"></label>
-        <label>Link ads (Ads Manager)<input type="url" name="url" required placeholder="https://adsmanager.facebook.com/...selected_ad_ids=..."></label></div>
-        <div class="row"><button class="btn" type="submit">Thêm ads</button></div>
-      </form></div>
-    ${(c.docs || []).length ? `<div class="block"><h3>Tài liệu AI đã tạo</h3><ul class="docs">${c.docs.slice(0, 20).map(d => `<li><span class="hint-i">${esc(d.t)}</span> <a href="${link(d.url)}" target="_blank" rel="noopener">${esc(d.title)} ↗</a></li>`).join('')}</ul></div>` : ''}
+      ${link(c.drive) ? `<div class="drvact"><a class="btn" href="${link(c.drive)}" target="_blank" rel="noopener">Mở thư mục Drive của ${n} ↗</a></div>` : `<p>Chưa có thư mục. Lần đầu chạy AI, thư mục và các thư mục con sẽ tự được tạo. Hoặc dán link thư mục có sẵn vào ô dưới.</p>`}
+      <div class="row"><input type="url" id="clDrive" value="${esc(link(c.drive))}" placeholder="https://drive.google.com/drive/folders/..." aria-label="Link thư mục Drive của ${n}"><button class="btn" type="button" id="clDriveSave">${link(c.drive) ? 'Lưu link mới' : 'Lưu link'}</button></div></div>
     <div class="iso"><b>Thông tin khách</b>
       <div class="two"><label>Giai đoạn<select id="clStage">${stageOpts}</select></label><label>Ghi chú<input type="text" id="clNote" value="${esc(c.note || '')}" maxlength="120"></label></div>
-      <p class="hint">Agent làm việc cho ${n} chỉ đọc và ghi trong 7 thư mục dưới đây. Dữ liệu của khách khác không lẫn vào.</p>
       <div class="row"><button class="crumb danger" type="button" id="clDel">Xoá khách này khỏi web</button></div></div>
-    <div class="block"><h3>Thư mục của ${n}</h3><p class="hint">Mỗi thư mục ghi rõ ai được ghi và ai được đọc. Dán link thư mục con vào ô cuối mỗi thẻ, link tự lưu.</p><div class="folders">${rows}</div></div>${review}`;
+    <div class="block"><h3>Quy trình làm việc của ${n}</h3><p class="hint">Mỗi bước là một thư mục trên Drive. File AI tạo ra được lưu vào đúng thư mục và hiện ngay dưới bước đó.</p>
+    <div class="steps">
+    ${step(0)}
+    ${step(1, `<textarea class="cf" data-cf="brief" rows="6" placeholder="Nhập brief của khách: sản phẩm, mục tiêu, ngân sách, thời gian, khu vực, khách hàng mục tiêu...">${esc(c.brief || '')}</textarea>
+      <div class="row"><select data-mk="mode" aria-label="Cách chạy"><option value="multi"${SEL.mode !== 'fast' ? ' selected' : ''}>Đa tác tử (5 agent, 1-3 phút)</option><option value="fast"${SEL.mode === 'fast' ? ' selected' : ''}>Nhanh (1 agent)</option></select>
+      <button class="btn" type="button" data-run="brief">Gửi agent → tạo tư vấn vào 02_Tu-van</button></div>${out('brief')}`)}
+    ${step(2, `<textarea class="cf" data-cf="planNote" rows="2" placeholder="Ghi chú thêm cho kế hoạch (không bắt buộc), VD: khách duyệt gói 15%, chạy từ 01/11">${esc(c.planNote || '')}</textarea>
+      <div class="row"><button class="btn" type="button" data-run="plan"${has02 ? '' : ' disabled'}>Đã sửa xong → tạo kế hoạch vào 03</button>${has02 ? '' : '<span class="hint-i">Chạy bước 01 trước.</span>'}</div>
+      <p class="hint-i">Agent đọc bản Google Docs sửa gần nhất trong 02_Tu-van.</p>${out('plan')}`)}
+    ${step(3)}
+    ${step(4, `<div class="two"><label>ID tài khoản quảng cáo<input type="text" class="cf" data-cf="adAccount" value="${esc(c.adAccount || '')}" placeholder="act_123456789 hoặc link Ads Manager"></label>
+      <label>Khoảng thời gian<select class="cf" data-cf="metaRange">${rangeOpts}</select></label></div>
+      <div class="row"><button class="btn" type="button" data-run="meta">Lấy số liệu Meta</button></div>${out('meta')}${metaView}
+      <details class="admore"><summary>Chưa có token Meta? Dán số liệu xuất từ Ads Manager</summary>
+        <textarea class="cf" data-cf="metaPaste" rows="4" placeholder="Copy bảng chiến dịch trong Ads Manager (chi tiêu, hiển thị, CTR, CPM, kết quả...) rồi dán vào đây">${esc(c.metaPaste || '')}</textarea></details>
+      <details class="admore"${(c.ads || []).length ? ' open' : ''}><summary>Phân tích từng mẫu ads (${(c.ads || []).length})</summary>
+        <div class="adlist">${(c.ads || []).map((a, ai) => adRow(i, ai, false)).join('')}</div>
+        <form id="adForm" class="clform"><div class="two"><label>Tên ads<input type="text" name="name" maxlength="120" placeholder="VD: ShopA_Mess_Broad_Video01"></label>
+          <label>Link ads (Ads Manager)<input type="url" name="url" required placeholder="https://adsmanager.facebook.com/...selected_ad_ids=..."></label></div>
+          <div class="row"><button class="btn" type="submit">+ Thêm ads</button></div></form></details>`)}
+    ${step(5, `<div class="row"><button class="btn" type="button" data-run="report"${m || c.metaPaste ? '' : ' disabled'}>Tạo báo cáo + đề xuất chỉnh sửa</button>${m || c.metaPaste ? '' : '<span class="hint-i">Lấy số liệu ở bước 04 trước.</span>'}</div>
+      <p class="hint-i">Dùng số liệu 04, đối chiếu kế hoạch mới nhất trong 03.${SEL.mode !== 'fast' ? ' Có agent Kiểm duyệt soát lại.' : ''}</p>${out('report')}`)}
+    </div></div>`;
 };
 
 /* ===== Điều hướng kiểu trình duyệt: lùi, tiến, tải lại, thanh địa chỉ ===== */
@@ -526,7 +542,7 @@ const fmtOut = o => typeof o === 'string' ? md(o) : o.bao_cao_markdown !== undef
   : o.van_de ? (o.dat ? '<p>Đạt, không phát hiện vấn đề.</p>' : `<ul>${o.van_de.map(v => `<li>${esc(v)}</li>`).join('')}</ul>`) : `<pre>${esc(JSON.stringify(o, null, 1))}</pre>`;
 const RUNS = {}; // kết quả từng bước theo brief/ads, để chạy tiếp khi lỗi giữa chừng
 
-async function summarizeMulti(c, brief, outEl) {
+async function summarizeMulti(c, brief, outEl, extra) {
   const key = 'b|' + (c ? c.n : '') + '|' + brief, cache = RUNS[key] = RUNS[key] || {};
   const set = pipeline(outEl, [
     { id: 'tn', label: '① Tiếp nhận', desc: 'tóm tắt brief, câu cần hỏi lại' },
@@ -541,7 +557,7 @@ async function summarizeMulti(c, brief, outEl) {
   [inp.noi_dung, inp.tracking] = await Promise.all([agentStep(set, cache, 'nd', 'noi_dung', inp), agentStep(set, cache, 'tk', 'tracking', inp)]);
   set('th', 'run', '<span class="hint-i">đang viết bản tư vấn và lưu file...</span>');
   try {
-    const d = await AI.call('consultSave', { provider: agentModel('tong_hop'), input: inp, ...dirs(c, '02_Tu-van') });
+    const d = await AI.call('consultSave', { provider: agentModel('tong_hop'), input: inp, ...dirs(c, '02_Tu-van'), ...(extra || {}) });
     set('th', 'done', `<span class="hint-i">${d.provider}</span>`);
     delete RUNS[key];
     return d;
@@ -580,6 +596,51 @@ async function summarize() {
     toast('Đã tạo file tư vấn.');
   } catch (err) { toast(err.message + (multi ? ' Bấm lại "Gửi AI phân tích" để chạy tiếp từ bước lỗi.' : '')); }
   finally { wait(btn, false); }
+}
+
+/* ===== Quy trình theo thư mục khách ===== */
+async function runStep(kind) {
+  const ci = cur.c, c = CLIENTS[ci]; if (!c) return;
+  // lấy giá trị đang gõ dở trong các ô
+  document.querySelectorAll('#modBody .cf').forEach(el => { c[el.dataset.cf] = el.value.trim(); });
+  saveData();
+  const btn = document.querySelector(`[data-run="${kind}"]`), box = $('out-' + kind), key = ci + ':' + kind;
+  const show = html => { OUT[key] = html; const b = $('out-' + kind); if (b && cur.c === ci) { b.hidden = false; b.innerHTML = html; } };
+  const done = (d, sub, html) => { applyFolders(c, d.folders); addDoc(c, d, sub); saveData(); OUT[key] = html; if (cur.c === ci) render(cur, false); };
+  const docBtn = (d, label) => `<div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">${label} ↗</a></div>`;
+  try {
+    if (kind === 'brief') {
+      if (!c.brief) { toast('Nhập brief của khách trước.'); return; }
+      wait(btn, true, SEL.mode !== 'fast' ? 'Các agent đang làm việc...' : 'Agent đang phân tích...');
+      const d = SEL.mode !== 'fast' ? await summarizeMulti(c, c.brief, box, { briefFolder: link(c.links && c.links['01_Brief']) })
+        : await AI.call('consult', { brief: c.brief, client: c.n, ...dirs(c, '02_Tu-van'), briefFolder: link(c.links && c.links['01_Brief']) });
+      if (d.briefDoc) addDoc(c, { doc: d.briefDoc }, '01_Brief');
+      done(d, '02_Tu-van', docBtn(d, 'Mở bản tư vấn (02_Tu-van)') + detailsOf('Xem nhanh bản tư vấn', md(d.text)) + '<p class="hint">Sửa bản tư vấn trong Google Docs, gửi khách duyệt, rồi bấm "Đã sửa xong → tạo kế hoạch" ở bước 02.</p>');
+    } else if (kind === 'plan') {
+      wait(btn, true, 'Agent đang lập kế hoạch...'); show('<p class="hint">Đang đọc bản tư vấn mới nhất trong 02_Tu-van và lập kế hoạch...</p>');
+      const last02 = (c.docs || []).find(x => x.sub === '02_Tu-van');
+      const d = await AI.call('plan', { client: c.n, ...dirs(c, '03_Ke-hoach-setup'), sourceFolder: link(c.links && c.links['02_Tu-van']), sourceDoc: last02 ? last02.url : '', note: c.planNote || '', provider: agentModel('ke_hoach') });
+      done(d, '03_Ke-hoach-setup', `<p class="hint">Dựa trên: <a href="${link(d.source.url)}" target="_blank" rel="noopener">${esc(d.source.title)}</a></p>` + docBtn(d, 'Mở kế hoạch (03_Ke-hoach-setup)') + detailsOf('Xem nhanh kế hoạch', md(d.text)));
+    } else if (kind === 'meta') {
+      wait(btn, true, 'Đang lấy số liệu...'); show('<p class="hint">Đang lấy số liệu tài khoản và từng chiến dịch từ Meta...</p>');
+      const d = await AI.call('metaPull', { client: c.n, account: c.adAccount, range: c.metaRange || 'last_7d', ...dirs(c, '04_So-ads-Meta') });
+      applyFolders(c, d.folders);
+      c.meta = { t: new Date().toLocaleString('vi-VN'), account: d.account, campaigns: d.campaigns, sheet: d.sheet };
+      saveData(); OUT[key] = ''; if (cur.c === ci) render(cur, false);
+      toast('Đã lấy số liệu và lưu vào Google Sheet trong 04_So-ads-Meta.'); return;
+    } else if (kind === 'report') {
+      wait(btn, true, 'Agent đang viết báo cáo...'); show('<p class="hint">Agent Báo cáo đang phân tích' + (SEL.mode !== 'fast' ? ', agent Kiểm duyệt sẽ soát lại' : '') + '... (khoảng 1-2 phút)</p>');
+      const last03 = (c.docs || []).find(x => x.sub === '03_Ke-hoach-setup');
+      const d = await AI.call('report', { client: c.n, meta: c.meta ? { account: c.meta.account, campaigns: c.meta.campaigns } : null, paste: c.metaPaste || '', ...dirs(c, '05_Bao-cao'),
+        planFolder: link(c.links && c.links['03_Ke-hoach-setup']), planDoc: last03 ? last03.url : '', review: SEL.mode !== 'fast', provider: agentModel('bao_cao'), reviewProvider: agentModel('kiem_duyet') });
+      done(d, '05_Bao-cao', docBtn(d, 'Mở báo cáo (05_Bao-cao)')
+        + (d.check ? `<p class="hint">Kiểm duyệt: ${d.check.dat ? 'đạt' : esc(d.check.van_de.join('; ')) + ' (đã sửa trong file)'}</p>` : '') + detailsOf('Xem nhanh báo cáo', md(d.text)));
+    }
+    toast('Xong. File đã lưu vào thư mục của ' + c.n + '.');
+  } catch (err) {
+    toast(err.message);
+    if (kind !== 'brief' || SEL.mode === 'fast') show(`<p class="hint">${esc(err.message)}</p>`);
+  } finally { wait(document.querySelector(`[data-run="${kind}"]`), false); }
 }
 
 async function analyzeAdMulti(c, a, box) {
@@ -658,6 +719,7 @@ $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   if (e.target.closest('#sum')) summarize();
+  const run = e.target.closest('[data-run]'); if (run) runStep(run.dataset.run);
   if (e.target.closest('#aiSet')) { if (AI.setup(true)) AI.call('ping', {}).then(d => toast('Đã kết nối backend, đang dùng ' + d.provider + '.' + (d.meta ? '' : ' Chưa có META_TOKEN: dán số liệu tay khi phân tích.'))).catch(err => toast(err.message)); }
   const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }
   const ad = e.target.closest('[data-addel]');
@@ -701,6 +763,7 @@ $('modBody').addEventListener('change', e => {
     c.links = c.links || {}; if (v) c.links[k] = v; else delete c.links[k];
     saveData(); render(cur, false); toast(v ? 'Đã lưu link ' + k + '.' : 'Đã xoá link ' + k + '.'); return;
   }
+  if (e.target.classList.contains('cf')) { CLIENTS[cur.c][e.target.dataset.cf] = e.target.value.trim(); saveData(); return; }
   if (e.target.id === 'clStage' || e.target.id === 'clNote') {
     const c = CLIENTS[cur.c];
     if (e.target.id === 'clStage') c.s = +e.target.value; else c.note = e.target.value.trim();

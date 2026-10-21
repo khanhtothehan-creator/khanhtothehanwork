@@ -31,6 +31,10 @@ function doPost(e) {
     if (req.action === 'consultSave') return out(consultSave(req));
     if (req.action === 'adData') return out(adData(req));
     if (req.action === 'adSave') return out(adSave(req));
+    // Quy trình theo thư mục khách: 02 tư vấn → 03 kế hoạch → 04 số liệu Meta → 05 báo cáo
+    if (req.action === 'plan') return out(plan(req));
+    if (req.action === 'metaPull') return out(metaPull(req));
+    if (req.action === 'report') return out(report(req));
     return out({ ok: false, error: 'Không rõ yêu cầu: ' + req.action });
   } catch (err) {
     return out({ ok: false, error: String(err.message || err) });
@@ -184,9 +188,10 @@ function consult(req) {
   const title = `Tư vấn - ${client} - ${today()}`;
   const folders = clientFolders(req, client, '02_Tu-van');
   const doc = writeDoc(title, text, folders.target);
+  const briefDoc = saveBrief(req, folders, client, brief);
   logRow('Tư vấn', ['Thời gian', 'Khách', 'Brief (rút gọn)', 'File tư vấn'],
     [new Date(), client, brief.slice(0, 300), doc.url]);
-  return { ok: true, text, doc, sheet: sheetUrl(), folders: folders.links };
+  return { ok: true, text, doc, briefDoc, sheet: sheetUrl(), folders: folders.links };
 }
 
 /* ===== 2. Link ads → số liệu Meta → phân tích ===== */
@@ -351,8 +356,9 @@ function consultSave(req) {
   const title = `Tư vấn - ${client} - ${today()}`;
   const folders = clientFolders(req, client, '02_Tu-van');
   const doc = writeDoc(title, text + appendix.replace(/^### /gm, '## '), folders.target);
+  const briefDoc = saveBrief(req, folders, client, String(i.brief));
   logRow('Tư vấn', ['Thời gian', 'Khách', 'Brief (rút gọn)', 'File tư vấn'], [new Date(), client, String(i.brief).slice(0, 300), doc.url]);
-  return { ok: true, provider: used, text, doc, sheet: sheetUrl(), folders: folders.links };
+  return { ok: true, provider: used, text, doc, briefDoc, sheet: sheetUrl(), folders: folders.links };
 }
 
 // Bước đầu luồng ads: lấy số liệu (Meta hoặc dán tay) để các agent dùng chung
@@ -371,11 +377,145 @@ function adSave(req) {
   return { ok: true, doc: f.doc, sheet: f.sheet, name: f.name, folders: f.folders };
 }
 
+/* ===== 03 Kế hoạch: đọc bản tư vấn đã sửa trong 02_Tu-van → kế hoạch setup chi tiết ===== */
+const PLAN_SYSTEM = ROLE + 'Vai trò: agent Kế hoạch. Khanh đã sửa và chốt bản tư vấn với khách. Từ bản tư vấn đó, lập KẾ HOẠCH SETUP CHI TIẾT để Khanh làm theo trong Ads Manager. Các phần: ## Mục tiêu và KPI đã chốt, ## Cấu trúc tài khoản (từng chiến dịch: tên theo quy tắc Khach_MucTieu_Tep_Content_NgayThang, mục tiêu Meta, ngân sách/ngày, lịch chạy; từng nhóm quảng cáo: tệp, độ tuổi, khu vực, sở thích hoặc tệp tuỳ chỉnh, vị trí hiển thị; từng mẫu ads), ## Nội dung và tài nguyên cần chuẩn bị (danh sách hình/video/caption, ai làm, hạn), ## Checklist cài đặt trước khi chạy (Pixel, sự kiện, Messenger/form, thanh toán, quyền tài khoản), ## Lịch triển khai theo ngày/tuần, ## Ngưỡng tối ưu (khi nào tắt, khi nào tăng ngân sách, theo chỉ số cụ thể). Bám sát nội dung đã chốt, không tự đổi ngân sách hay mục tiêu. ' + MD_RULE;
+
+function plan(req) {
+  const client = String(req.client || 'Khách');
+  const src = latestDoc(req.sourceFolder, req.sourceDoc);
+  if (!src) throw new Error('Chưa có bản tư vấn trong 02_Tu-van. Hãy chạy bước 01_Brief trước.');
+  const used = pickProvider(req.provider);
+  const text = ai(PLAN_SYSTEM, `Khách: ${client}${T('Bản tư vấn đã chốt (' + src.title + ')', src.text)}${T('Ghi chú thêm của Khanh', req.note)}`, null, used);
+  const folders = clientFolders(req, client, '03_Ke-hoach-setup');
+  const doc = writeDoc(`Kế hoạch setup - ${client} - ${today()}`, `**Dựa trên:** ${src.title}\n\n` + text, folders.target);
+  return { ok: true, provider: used, text, doc, source: { title: src.title, url: src.url }, folders: folders.links };
+}
+
+/* ===== 04 Số liệu Meta: tài khoản quảng cáo + từng chiến dịch ===== */
+const RANGES = { last_7d: '7 ngày qua', last_14d: '14 ngày qua', last_30d: '30 ngày qua', this_month: 'Tháng này', last_month: 'Tháng trước', maximum: 'Từ trước đến nay' };
+// Loại kết quả chính theo mục tiêu chiến dịch
+const RESULT_PREFS = {
+  msg: [['onsite_conversion.messaging_conversation_started_7d', 'Tin nhắn']],
+  lead: [['onsite_conversion.lead_grouped', 'Khách tiềm năng'], ['lead', 'Khách tiềm năng'], ['offsite_conversion.fb_pixel_lead', 'Khách tiềm năng']],
+  buy: [['omni_purchase', 'Mua hàng'], ['offsite_conversion.fb_pixel_purchase', 'Mua hàng'], ['purchase', 'Mua hàng']],
+  click: [['link_click', 'Click liên kết']],
+  eng: [['post_engagement', 'Tương tác'], ['video_view', 'Lượt xem video']]
+};
+const OBJ_PREF = {
+  OUTCOME_ENGAGEMENT: ['msg', 'eng'], MESSAGES: ['msg'], OUTCOME_LEADS: ['lead', 'msg'], LEAD_GENERATION: ['lead'],
+  OUTCOME_SALES: ['buy', 'msg'], CONVERSIONS: ['buy', 'lead'], OUTCOME_TRAFFIC: ['click'], LINK_CLICKS: ['click'], POST_ENGAGEMENT: ['eng'], VIDEO_VIEWS: ['eng']
+};
+function resultOf(row, objective) {
+  const spend = +row.spend || 0, acts = row.actions || [];
+  if (/AWARENESS|REACH/.test(objective || '')) return { label: 'Người tiếp cận', value: +row.reach || 0, cost: row.reach ? spend / row.reach * 1000 : 0, per: '1.000 người' };
+  const groups = (OBJ_PREF[objective] || []).concat(['msg', 'lead', 'buy', 'click', 'eng']);
+  for (const g of groups) for (const [type, label] of RESULT_PREFS[g]) {
+    const a = acts.find(x => x.action_type === type);
+    if (a && +a.value > 0) return { label, value: +a.value, cost: spend / +a.value, per: label.toLowerCase() };
+  }
+  return { label: 'Chưa có kết quả', value: 0, cost: 0, per: '' };
+}
+const accountId = s => { const m = String(s || '').match(/act[_=](\d+)/) || String(s || '').match(/^\s*(\d{5,})\s*$/); return m ? m[1] : ''; };
+function metaAll(path, params) {
+  let d = metaGet(path, Object.assign({ limit: 500 }, params)), rows = d.data || [];
+  while (d.paging && d.paging.next && rows.length < 2000) {
+    d = JSON.parse(UrlFetchApp.fetch(d.paging.next, { muteHttpExceptions: true }).getContentText() || '{}');
+    if (d.error) throw new Error(d.error.message);
+    rows = rows.concat(d.data || []);
+  }
+  return rows;
+}
+
+function metaPull(req) {
+  if (!prop('META_TOKEN')) throw new Error('Chưa có META_TOKEN trong Script properties (xem Bước 5 trong HUONG-DAN.md). Tạm thời có thể dán số liệu xuất từ Ads Manager vào ô bên dưới.');
+  const id = accountId(req.account);
+  if (!id) throw new Error('Nhập ID tài khoản quảng cáo (dạng act_123456789 hoặc dán link Ads Manager có act=...).');
+  const client = String(req.client || 'Khách'), range = RANGES[req.range] ? req.range : 'last_7d';
+  const fields = 'spend,impressions,reach,frequency,clicks,inline_link_clicks,ctr,cpc,cpm,actions';
+  const acc = metaGet('act_' + id, { fields: 'name,currency,account_status,amount_spent' });
+  const total = (metaGet('act_' + id + '/insights', { date_preset: range, fields }).data || [])[0] || {};
+  const camps = metaAll('act_' + id + '/campaigns', { fields: 'id,name,status,effective_status,objective,daily_budget,lifetime_budget' });
+  const ins = metaAll('act_' + id + '/insights', { level: 'campaign', date_preset: range, fields: 'campaign_id,' + fields });
+  const byId = {}; ins.forEach(x => { byId[x.campaign_id] = x; });
+  const campaigns = camps.map(c => {
+    const x = byId[c.id] || {}, res = resultOf(x, c.objective);
+    return {
+      id: c.id, name: c.name, status: c.effective_status || c.status, objective: c.objective,
+      budget: c.daily_budget ? +c.daily_budget + '/ngày' : c.lifetime_budget ? +c.lifetime_budget + ' trọn đời' : '',
+      spend: +x.spend || 0, impressions: +x.impressions || 0, reach: +x.reach || 0, clicks: +x.clicks || 0,
+      ctr: +x.ctr || 0, cpm: +x.cpm || 0, result_label: res.label, results: res.value, cost_per_result: Math.round(res.cost)
+    };
+  }).filter(c => c.spend > 0 || c.status === 'ACTIVE').sort((a, b) => b.spend - a.spend);
+  const sum = {};
+  campaigns.forEach(c => { if (c.results) sum[c.result_label] = (sum[c.result_label] || 0) + c.results; });
+  const account = {
+    id: 'act_' + id, name: acc.name, currency: acc.currency, range, range_label: RANGES[range],
+    spend: +total.spend || 0, impressions: +total.impressions || 0, reach: +total.reach || 0, clicks: +total.clicks || 0,
+    ctr: +total.ctr || 0, cpm: +total.cpm || 0, results: Object.keys(sum).map(k => k + ': ' + sum[k]).join(', ')
+  };
+  const folders = clientFolders(req, client, '04_So-ads-Meta');
+  const sheet = clientSheet(folders.target, `Số liệu Meta - ${client}`);
+  const now = new Date();
+  appendTab(sheet, 'Tài khoản', ['Thời gian lấy', 'Khoảng thời gian', 'Tài khoản', 'Tiền tệ', 'Chi tiêu', 'Hiển thị', 'Tiếp cận', 'Click', 'CTR (%)', 'CPM', 'Kết quả'],
+    [[now, account.range_label, account.name + ' (' + account.id + ')', account.currency, account.spend, account.impressions, account.reach, account.clicks, account.ctr, account.cpm, account.results]]);
+  appendTab(sheet, 'Chiến dịch', ['Thời gian lấy', 'Khoảng thời gian', 'Chiến dịch', 'ID', 'Trạng thái', 'Mục tiêu', 'Ngân sách', 'Chi tiêu', 'Hiển thị', 'Tiếp cận', 'Click', 'CTR (%)', 'CPM', 'Loại kết quả', 'Kết quả', 'Chi phí/kết quả'],
+    campaigns.map(c => [now, account.range_label, c.name, c.id, c.status, c.objective, c.budget, c.spend, c.impressions, c.reach, c.clicks, c.ctr, c.cpm, c.result_label, c.results, c.cost_per_result]));
+  return { ok: true, account, campaigns, sheet: sheet.getUrl(), folders: folders.links };
+}
+
+// Bảng tính riêng của khách trong 04_So-ads-Meta (giữ lịch sử mỗi lần lấy số liệu)
+function clientSheet(folder, name) {
+  const it = folder.getFilesByName(name);
+  if (it.hasNext()) return SpreadsheetApp.openById(it.next().getId());
+  const ss = SpreadsheetApp.create(name);
+  DriveApp.getFileById(ss.getId()).moveTo(folder);
+  return ss;
+}
+function appendTab(ss, tab, header, rows) {
+  let sh = ss.getSheetByName(tab);
+  if (!sh) {
+    sh = ss.insertSheet(tab); sh.appendRow(header);
+    sh.getRange(1, 1, 1, header.length).setFontWeight('bold').setBackground('#DDF0CF'); sh.setFrozenRows(1);
+    const first = ss.getSheetByName('Sheet1') || ss.getSheetByName('Trang tính1');
+    if (first && first.getLastRow() === 0) ss.deleteSheet(first);
+  }
+  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, header.length).setValues(rows);
+}
+
+/* ===== 05 Báo cáo: số liệu 04 + kế hoạch 03 → đánh giá và đề xuất chỉnh sửa ===== */
+const REPORT_SYSTEM = ROLE + 'Vai trò: agent Báo cáo tài khoản. Từ số liệu tài khoản quảng cáo và từng chiến dịch (và kế hoạch/KPI nếu có), viết báo cáo cho Khanh. Các phần: ## Tổng quan tài khoản (chi tiêu, kết quả chính, chi phí/kết quả, xu hướng nếu có), ## Đánh giá từng chiến dịch (mỗi chiến dịch: Tốt / Ổn / Cần tối ưu / Kém, kèm lý do bằng số liệu), ## So với kế hoạch và KPI (nếu có kế hoạch), ## Đề xuất chỉnh sửa (việc cụ thể theo thứ tự ưu tiên: tăng/giảm ngân sách bao nhiêu phần trăm, tắt, nhân bản, đổi nội dung, đổi tệp; nêu chỉ số căn cứ), ## Việc cần làm tuần tới, ## Tóm tắt gửi khách (3-5 câu, lời lẽ dễ hiểu). Chỉ dùng số có trong dữ liệu; so sánh với mức tham khảo thị trường Việt Nam thì ghi rõ là tham khảo. ' + MD_RULE;
+
+function report(req) {
+  const client = String(req.client || 'Khách');
+  const paste = String(req.paste || '').trim();
+  if (!req.meta && !paste) throw new Error('Chưa có số liệu. Bấm "Lấy số liệu Meta" ở bước 04, hoặc dán số liệu xuất từ Ads Manager.');
+  const planDoc = latestDoc(req.planFolder, req.planDoc);
+  const used = pickProvider(req.provider);
+  const data = { so_lieu_meta: req.meta || null, so_lieu_dan_tay: paste || null };
+  let text = ai(REPORT_SYSTEM, `Khách: ${client}${T('Số liệu', data)}${planDoc ? T('Kế hoạch đã chốt (' + planDoc.title + ')', planDoc.text.slice(0, 15000)) : ''}${T('Ghi chú của Khanh', req.note)}`, null, used);
+  let check = null;
+  if (req.review) {
+    const k = AGENT_DEFS.kiem_duyet;
+    check = ai(k.system, k.user({ ad: data, bao_cao: { bao_cao_markdown: text } }), k.schema, pickProvider(req.reviewProvider));
+    check = { dat: !!check.dat, van_de: [].concat(check.van_de || []), bao_cao_markdown: String(check.bao_cao_markdown || '') };
+    if (!check.dat && check.bao_cao_markdown) text = check.bao_cao_markdown;
+  }
+  const folders = clientFolders(req, client, '05_Bao-cao');
+  const head = req.meta && req.meta.account ? `**Tài khoản:** ${req.meta.account.name || ''} (${req.meta.account.id || ''}) · **Thời gian:** ${req.meta.account.range_label || ''}\n` : '';
+  const body = head + (planDoc ? `**Đối chiếu kế hoạch:** ${planDoc.title}\n` : '') + '\n' + text
+    + (check ? '\n\n## Kiểm duyệt\n' + (check.dat ? '- Báo cáo đạt, không phát hiện vấn đề.' : check.van_de.map(v => '- ' + v).join('\n')) : '');
+  const doc = writeDoc(`Báo cáo - ${client} - ${today()}`, body, folders.target);
+  logRow('Báo cáo tài khoản', ['Thời gian', 'Khách', 'Tài khoản', 'Khoảng thời gian', 'Chi tiêu', 'Kết quả', 'File báo cáo'],
+    [new Date(), client, req.meta && req.meta.account ? req.meta.account.id : 'số liệu dán tay', req.meta && req.meta.account ? req.meta.account.range_label : '',
+      req.meta && req.meta.account ? req.meta.account.spend : '', req.meta && req.meta.account ? req.meta.account.results : '', doc.url]);
+  return { ok: true, provider: used, text, check, doc, sheet: sheetUrl(), folders: folders.links };
+}
+
 /* ===== Google Docs, Drive, Sheets ===== */
 function today() { return Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'dd-MM-yyyy HH:mm'); }
 
 // Thư mục con của mỗi khách, giống trên website
-const CLIENT_SUBS = ['00_Thong-tin', '01_Brief', '02_Tu-van', '03_Ke-hoach-setup', '04_So-ads-Meta', '05_Bao-cao', '06_Nhat-ky-toi-uu'];
+const CLIENT_SUBS = ['00_Thong-tin', '01_Brief', '02_Tu-van', '03_Ke-hoach-setup', '04_So-ads-Meta', '05_Bao-cao'];
 
 // Link thư mục Drive → thư mục (null nếu không mở được)
 function folderFrom(link) {
@@ -404,7 +544,28 @@ function clientFolders(req, client, sub) {
   }
   const target = direct || childFolder(clientDir, sub);
   links.target = target.getUrl(); links.sub = sub;
-  return { target, links };
+  // Thư mục con khác của cùng khách (VD lưu brief vào 01_Brief khi đang lưu tư vấn vào 02_Tu-van)
+  const other = (name, link) => folderFrom(link) || (clientDir ? childFolder(clientDir, name) : target);
+  return { target, links, other };
+}
+
+// Lưu nguyên văn brief vào 01_Brief để lần sau xem lại
+function saveBrief(req, folders, client, brief) {
+  try { return writeDoc(`Brief - ${client} - ${today()}`, brief, folders.other('01_Brief', req.briefFolder)); }
+  catch (err) { return null; }
+}
+
+// Google Docs sửa gần nhất trong một thư mục (VD bản tư vấn bạn vừa chỉnh trong 02_Tu-van)
+function latestDoc(folderLink, docLink) {
+  const dir = folderFrom(folderLink);
+  let file = null;
+  if (dir) {
+    const it = dir.getFilesByType(MimeType.GOOGLE_DOCS);
+    while (it.hasNext()) { const f = it.next(); if (!file || f.getLastUpdated() > file.getLastUpdated()) file = f; }
+  }
+  if (!file && docLink) { try { file = DriveApp.getFileById(DocumentApp.openByUrl(docLink).getId()); } catch (err) { /* bỏ qua */ } }
+  if (!file) return null;
+  return { title: file.getName(), url: file.getUrl(), text: DocumentApp.openById(file.getId()).getBody().getText().slice(0, 30000) };
 }
 function childFolder(parent, name) {
   const it = parent.getFoldersByName(name);
