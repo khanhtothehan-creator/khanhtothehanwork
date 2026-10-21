@@ -35,6 +35,8 @@ const AI = (() => {
     } catch (e) { throw new Error('Không kết nối được backend. Kiểm tra lại địa chỉ Web app.'); }
     const d = await r.json().catch(() => ({ ok: false, error: 'Backend trả về dữ liệu lạ. Kiểm tra quyền truy cập Web app là "Anyone".' }));
     if (!d.ok && d.error === 'unauthorized') { put(PK, ''); throw new Error('Sai mã truy cập. Bấm lại để nhập mã mới.'); }
+    // Backend chưa có chức năng này: Apps Script đang chạy bản code cũ
+    if (!d.ok && /^Không rõ yêu cầu/.test(d.error || '')) throw new Error('Backend Apps Script đang là bản cũ. Dán code mới từ GitHub (backend/Code.gs), lưu, rồi Triển khai → Quản lý các lần triển khai → ✏️ → Phiên bản mới → Triển khai.');
     if (!d.ok) throw new Error(d.error || 'Có lỗi xảy ra.');
     return d;
   }
