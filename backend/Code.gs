@@ -59,13 +59,21 @@ function gemini(system, user, schema) {
   };
   if (schema) { body.generationConfig.responseMimeType = 'application/json'; body.generationConfig.responseSchema = toGeminiSchema(schema); }
   let model = prop('GEMINI_MODEL', 'gemini-flash-latest');
-  let res = geminiFetch(model, body, key);
+  let res = geminiRetry(model, body, key);
   // Tên model đổi theo thời gian: không tìm thấy thì tự chọn bản Flash đang có
-  if (res.code === 404) { model = pickGeminiModel(key); PROPS.setProperty('GEMINI_MODEL', model); res = geminiFetch(model, body, key); }
+  if (res.code === 404) { model = geminiModels(key)[0]; PROPS.setProperty('GEMINI_MODEL', model); res = geminiRetry(model, body, key); }
+  // Model đang quá tải: thử lần lượt các model Flash khác
+  if (res.code === 503 || res.code === 500) {
+    for (const m of geminiModels(key).filter(x => x !== model).slice(0, 4)) {
+      res = geminiRetry(m, body, key);
+      if (res.code === 200 || res.code === 400) { model = m; break; }
+    }
+  }
   // Schema không được hỗ trợ: thử lại, chỉ yêu cầu trả JSON
   if (res.code === 400 && schema) { delete body.generationConfig.responseSchema; res = geminiFetch(model, body, key); }
   const data = res.data;
   if (res.code === 429) throw new Error('Gemini đang giới hạn lượt dùng miễn phí. Đợi 1 phút (hoặc sang ngày mai nếu hết lượt trong ngày) rồi thử lại.');
+  if (res.code === 503 || res.code === 500) throw new Error('Gemini đang quá tải. Đợi vài phút rồi thử lại.');
   if (res.code !== 200) throw new Error('Gemini báo lỗi ' + res.code + ': ' + ((data.error && data.error.message) || '').slice(0, 200));
   if (data.promptFeedback && data.promptFeedback.blockReason) throw new Error('Gemini từ chối nội dung này (' + data.promptFeedback.blockReason + ').');
   const cand = (data.candidates || [])[0] || {};
@@ -81,15 +89,26 @@ function geminiFetch(model, body, key) {
   });
   return { code: res.getResponseCode(), data: JSON.parse(res.getContentText() || '{}') };
 }
-function pickGeminiModel(key) {
+// Gọi lại tối đa 3 lần khi Google báo quá tải (503/500)
+function geminiRetry(model, body, key) {
+  let res;
+  for (let i = 0; i < 3; i++) {
+    res = geminiFetch(model, body, key);
+    if (res.code !== 503 && res.code !== 500) return res;
+    Utilities.sleep(2000 * (i + 1));
+  }
+  return res;
+}
+// Danh sách model Flash dùng được, mới nhất trước (bản thường trước bản lite)
+function geminiModels(key) {
   const res = UrlFetchApp.fetch(GEMINI_API + 'models?pageSize=200', { headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
   const list = (JSON.parse(res.getContentText() || '{}').models || [])
     .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
     .map(m => m.name.replace('models/', ''))
-    .filter(n => /flash/.test(n) && !/lite|image|tts|audio|live|preview|exp/.test(n))
-    .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }));
+    .filter(n => /flash/.test(n) && !/image|tts|audio|live|preview|exp/.test(n))
+    .sort((a, b) => (/lite/.test(a) - /lite/.test(b)) || b.localeCompare(a, 'en', { numeric: true }));
   if (!list.length) throw new Error('Không tìm thấy model Gemini Flash nào. Đặt GEMINI_MODEL trong Script properties.');
-  return list[0];
+  return list;
 }
 // JSON Schema → định dạng schema của Gemini (bỏ các trường Gemini không nhận)
 function toGeminiSchema(s) {
