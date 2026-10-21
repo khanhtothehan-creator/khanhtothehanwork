@@ -379,7 +379,7 @@ function md(t) {
 VIEWS.client = function (i) {
   const c = CLIENTS[i], s = c.s, n = esc(c.n);
   const lk = f => link(c.links && c.links[f]);
-  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">${d.up ? '📎' : '📄'} ${esc(d.title)}</a> <span class="hint-i">${d.up ? 'tải lên ' : ''}${esc(d.t)}</span></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
+  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">${d.up ? '📎' : '📄'} ${esc(d.title)}</a> <span class="hint-i">${d.up ? 'tải lên ' : ''}${esc(d.t)}</span><button type="button" class="fdel" data-fdel="${esc(d.url)}" data-fsub="${sub}" aria-label="Xoá file ${esc(d.title)}" title="Xoá file">✕</button></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
   const out = k => `<div class="stepout" id="out-${k}"${OUT[i + ':' + k] ? '' : ' hidden'}>${OUT[i + ':' + k] || ''}</div>`;
   const stageOpts = STAGES.map((t, k) => `<option value="${k}"${k === s ? ' selected' : ''}>${t}</option>`).join('');
   const rangeOpts = RANGE_OPTS.map(o => `<option value="${o[0]}"${(c.metaRange || 'last_7d') === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('');
@@ -717,6 +717,21 @@ document.addEventListener('submit', e => {
   const btn = f.querySelector('[type=submit]'); wait(btn, true, 'Đang lưu...');
   AI.call('calSave', body).then(() => { toast('Đã lưu vào Google Calendar.'); CAL.edit = null; calLoad(true); })
     .catch(err => { toast(err.message); wait(btn, false); });
+});
+
+/* ===== Xoá file khỏi một bước: chuyển vào Thùng rác Drive + bỏ khỏi danh sách ===== */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-fdel]'); if (!b) return;
+  const ci = cur.c, c = CLIENTS[ci]; if (!c) return;
+  const url = b.dataset.fdel, sub = b.dataset.fsub, d = (c.docs || []).find(x => x.url === url);
+  if (!d || !confirm(`Xoá "${d.title}"?\nFile sẽ được chuyển vào Thùng rác Google Drive (khôi phục được trong 30 ngày).`)) return;
+  const drop = () => { c.docs = c.docs.filter(x => x.url !== url); saveData(); if (cur.c === ci) render(cur, false); };
+  b.disabled = true;
+  try { await AI.call('trash', { url, folder: link(c.links && c.links[sub]) }); drop(); toast('Đã chuyển file vào Thùng rác Drive.'); }
+  catch (err) {
+    b.disabled = false;
+    if (confirm(`Không xoá được trên Drive: ${err.message}\n\nChỉ bỏ file khỏi danh sách trên web? (File vẫn còn trên Drive)`)) drop();
+  }
 });
 
 /* ===== Tải file từ máy lên thư mục Drive của một bước ===== */

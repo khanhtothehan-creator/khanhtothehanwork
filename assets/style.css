@@ -480,3 +480,7 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .upl label.crumb:focus-within { outline: 2px solid var(--frame); }
 .uplst { flex-basis: 100%; font-size: 13px; font-weight: 700; color: var(--title); }
 .uplst:empty { display: none; }
+.fdocs li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.fdel { margin-left: auto; border: 0; background: none; color: var(--pin); font-weight: 800; cursor: pointer; padding: 0 6px; border-radius: 6px; line-height: 1.6; }
+.fdel:hover, .fdel:focus-visible { background: #F8D2D2; }
+.fdel:disabled { opacity: .4; cursor: wait; }

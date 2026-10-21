@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-21d tai-file';
+const BACKEND_VERSION = '2026-10-21e xoa-file';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
 // Thư mục gốc trên Drive (đổi được bằng Script property ROOT_NAME)
@@ -40,6 +40,7 @@ function doPost(e) {
     if (req.action === 'metaPull') return out(metaPull(req));
     if (req.action === 'report') return out(report(req));
     if (req.action === 'upload') return out(upload(req));
+    if (req.action === 'trash') return out(trash(req));
     // Google Calendar
     if (req.action === 'calList') return out(calList(req));
     if (req.action === 'calSave') return out(calSave(req));
@@ -531,6 +532,21 @@ function upload(req) {
   const blob = Utilities.newBlob(Utilities.base64Decode(String(req.data)), req.mime || 'application/octet-stream', name);
   const f = folders.target.createFile(blob);
   return { ok: true, doc: { url: f.getUrl(), title: f.getName() }, folders: folders.links };
+}
+
+// Chuyển file vào Thùng rác Drive (khôi phục được trong 30 ngày).
+// Chỉ xoá file nằm trong đúng thư mục của bước đó, để không xoá nhầm file khác.
+function trash(req) {
+  const m = String(req.url || '').match(/\/d\/([\w-]{10,})/) || String(req.url || '').match(/[?&]id=([\w-]{10,})/);
+  if (!m) throw new Error('Không đọc được link file.');
+  const file = DriveApp.getFileById(m[1]), dir = folderFrom(req.folder);
+  if (!dir) throw new Error('Chưa có link thư mục của bước này nên không xoá được trên Drive.');
+  let inside = false;
+  const ps = file.getParents();
+  while (ps.hasNext()) if (ps.next().getId() === dir.getId()) inside = true;
+  if (!inside) throw new Error('File không nằm trong thư mục của bước này.');
+  file.setTrashed(true);
+  return { ok: true };
 }
 
 /* ===== Google Calendar (lịch chính của tài khoản chạy script) ===== */
