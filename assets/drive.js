@@ -106,5 +106,22 @@ const Drive = (() => {
     return counts;
   }
 
-  return { configured, connected, connect, disconnect, root, ensureClient, countFiles, folderUrl };
+  // File JSON nằm trong thư mục gốc, dùng để lưu danh sách khách giữa các máy.
+  async function findJson(name) {
+    const r = await root();
+    const where = `name='${q(name)}' and '${r}' in parents and trashed=false`;
+    const f = await api(`${API}?q=${encodeURIComponent(where)}&fields=files(id)&pageSize=1`);
+    return { r, id: f.files.length ? f.files[0].id : null };
+  }
+  async function loadJson(name) {
+    const { id } = await findJson(name);
+    return id ? api(`${API}/${id}?alt=media`) : null;
+  }
+  async function saveJson(name, data) {
+    let { r, id } = await findJson(name);
+    if (!id) id = (await api(API + '?fields=id', { method: 'POST', body: JSON.stringify({ name, parents: [r], mimeType: 'application/json' }) })).id;
+    return api(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media&fields=id`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  return { configured, connected, connect, disconnect, root, ensureClient, countFiles, folderUrl, loadJson, saveJson };
 })();

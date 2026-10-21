@@ -53,14 +53,13 @@ Ghi lại địa chỉ website, ví dụ `https://khanh-workspace.netlify.app`.
 - Quyền xin: tạo/sửa file do website tạo ra + xem tên file (không đọc nội dung file khác của bạn).
 - Không lưu mật khẩu; token đăng nhập chỉ giữ trong tab trình duyệt (khoảng 1 giờ).
 
-## 4. Gắn link Drive cho từng khách (không cần Client ID)
+## 4. Tạo khách và gắn link Drive ngay trên web
 
-Trong `assets/app.js`, mỗi khách trong `CLIENTS` có ô `drive` và `links`:
-```js
-{ n: 'Shop mẫu A', ..., drive: 'https://drive.google.com/drive/folders/xxxx', links: { '01_Brief': 'https://drive.google.com/drive/folders/yyyy' } },
-```
-- `drive`: link thư mục của khách. Trang khách sẽ có nút **Mở thư mục Drive của ... ↗**.
-- `links`: link từng thư mục con (không bắt buộc). Thư mục con nào có link sẽ hiện nút **Mở Drive ↗**.
+- Vào **Job chạy ads** → thẻ **+ Tạo thư mục khách** → điền tên khách, dán link thư mục Drive → **Tạo thư mục**.
+- Bấm vào thẻ khách để mở hồ sơ: nút **Mở thư mục Drive ↗**, ô sửa link, đổi giai đoạn/ghi chú, xoá khách.
+- Mỗi thư mục con (01_Brief, 02_Tu-van...) có ô dán link riêng ở cuối thẻ, dán xong link tự lưu.
+- Dữ liệu lưu trong trình duyệt. Khi đã nối Google Drive (Client ID), dữ liệu tự lưu thêm vào file
+  `khanh-workspace-data.json` trong thư mục `Khanh's Work Space` để mở trên máy khác vẫn thấy.
 
 ## 5. Sửa dữ liệu
 

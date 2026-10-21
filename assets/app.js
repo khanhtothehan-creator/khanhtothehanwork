@@ -14,9 +14,9 @@ const stk = (k, cls, alt) => `<img class="${cls}" src="${STK[k][0]}" width="${ST
 
 /* ===== Dữ liệu ví dụ ===== */
 const STAGES = ['Mới', 'Đã gửi tư vấn', 'Đang sửa', 'Đã chốt', 'Đang setup', 'Đang chạy', 'Đang tối ưu'];
-/* Mỗi khách:
-   drive = link thư mục Drive của khách (mở thư mục trên drive.google.com, copy link trên thanh địa chỉ, dán vào giữa hai dấu nháy)
-   links = link từng thư mục con, ví dụ: links: { '01_Brief': 'https://drive.google.com/drive/folders/...' } (không bắt buộc) */
+/* Danh sách khách ban đầu. Khách tạo trên web (nút "+ Tạo thư mục khách") được lưu trong trình duyệt,
+   và lưu lên Drive (file khanh-workspace-data.json) khi đã kết nối Google Drive.
+   drive = link thư mục Drive của khách, links = link từng thư mục con */
 const CLIENTS = [
   { n: 'Shop mẫu A', s: 0, note: 'Brief vừa nhận', goal: 'Tin nhắn', bud: 15000000, from: '2026-11-01', to: '2026-11-30', drive: '', links: {} },
   { n: 'Spa mẫu B', s: 1, note: 'Chờ khách xem tư vấn v1', goal: 'Chuyển đổi', bud: 12000000, from: '2026-11-05', to: '2026-12-05', drive: '', links: {} },
@@ -25,6 +25,12 @@ const CLIENTS = [
   { n: 'Shop mẫu E', s: 5, note: 'Tuần 3, ngân sách 20 triệu', goal: 'Tin nhắn', bud: 20000000, from: '2026-10-07', to: '2026-11-07', drive: '', links: {} },
   { n: 'Cửa hàng mẫu F', s: 6, note: 'Tuần 5, thử mẫu video mới', goal: 'Chuyển đổi', bud: 30000000, from: '2026-09-16', to: '2026-11-16', drive: '', links: {} }
 ];
+/* ===== Lưu danh sách khách ===== */
+const DATA_KEY = 'kws.data', DATA_FILE = 'khanh-workspace-data.json';
+let dataTime = 0;
+const setClients = d => { CLIENTS.splice(0, CLIENTS.length, ...d.clients); dataTime = d.t || 0; };
+try { const d = JSON.parse(localStorage.getItem(DATA_KEY)); if (d && Array.isArray(d.clients)) setClients(d); } catch (e) { /* dùng danh sách mặc định */ }
+
 const ADS = [
   { name: 'ShopE_Mess_Broad_Video01_2110', goal: 'Tin nhắn', bud: 300000, run: true },
   { name: 'ShopE_Mess_Lookalike_Anh02_2110', goal: 'Tin nhắn', bud: 200000, run: true },
@@ -212,11 +218,13 @@ const flower = () => `<svg viewBox="0 0 20 20"><g fill="var(--pink)" stroke="var
 const fmt = n => new Intl.NumberFormat('vi-VN').format(n) + ' đ';
 const VIEWS = {
   ads() {
-    const folders = CLIENTS.map((c, i) => `<button type="button" class="fd" data-client="${i}"><b>${c.n}</b><span>${c.note}</span><span class="pill ${c.s >= 5 ? 'on' : ''}">${STAGES[c.s]}</span></button>`).join('');
-    const dm = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+    const folders = CLIENTS.map((c, i) => `<button type="button" class="fd" data-client="${i}"><b>${esc(c.n)}</b><span>${esc(c.note || '')}</span><span class="pill ${c.s >= 5 ? 'on' : ''}">${STAGES[c.s]}</span>${link(c.drive) ? '<span class="dlink">🔗 Có link Drive</span>' : ''}</button>`).join('')
+      + '<button type="button" class="fd add" id="newCl"><b>+ Tạo thư mục khách</b><span>Thêm khách mới và dán link Drive</span></button>';
+    const stageOpts = STAGES.map((t, k) => `<option value="${k}">${t}</option>`).join('');
+    const dm = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '?';
     const t0 = new Date(); t0.setHours(0, 0, 0, 0);
     const left = c => { const d = Math.round((new Date(c.to) - t0) / 864e5); return d < 0 ? 'đã kết thúc' : `còn ${d} ngày`; };
-    const calRows = CLIENTS.map(c => `<tr><td><b>${c.n}</b></td><td>${c.goal}</td><td class="num">${fmt(c.bud)}</td><td>${dm(c.from)} - ${dm(c.to)} <span class="hint-i">(${c.s < 3 ? 'chưa bắt đầu' : left(c)})</span></td></tr>`).join('');
+    const calRows = CLIENTS.map(c => `<tr><td><b>${esc(c.n)}</b></td><td>${esc(c.goal || '')}</td><td class="num">${fmt(c.bud)}</td><td>${dm(c.from)} - ${dm(c.to)} <span class="hint-i">(${c.s < 3 ? 'chưa bắt đầu' : c.to ? left(c) : 'chưa có ngày'})</span></td></tr>`).join('');
     const sumOpts = ['Gemini', 'Claude'].map(m => `<option${m === (SEL.sumag || 'Gemini') ? ' selected' : ''}>${m}</option>`).join('');
     const rows = ADS.map((a, i) => `<tr>
       <td><input type="checkbox" id="ad${i}" data-ad="${i}" ${a.run ? 'checked' : ''} aria-label="Đã chạy: ${a.name}"></td>
@@ -226,6 +234,22 @@ const VIEWS = {
     <div class="block"><h3>Khách hàng</h3><p class="hint">Mỗi khách một thư mục riêng. Bấm vào thư mục để mở hồ sơ của khách đó.</p>
       <div class="seg" role="group" aria-label="Chế độ xem"><button type="button" data-tab="all" aria-pressed="true">Tất cả</button><button type="button" data-tab="cal" aria-pressed="false">Check lịch</button></div>
       <div id="tab-all" class="fgrid">${folders}</div>
+      <form id="clForm" class="clform" hidden>
+        <h4>Tạo thư mục khách mới</h4>
+        <label>Tên khách *<input type="text" name="n" required maxlength="80" placeholder="VD: Shop Hoa Mai"></label>
+        <label>Link thư mục Drive của khách<input type="url" name="drive" placeholder="https://drive.google.com/drive/folders/..."></label>
+        <label>Ghi chú<input type="text" name="note" maxlength="120" placeholder="VD: Brief vừa nhận"></label>
+        <div class="two">
+          <label>Giai đoạn<select name="s">${stageOpts}</select></label>
+          <label>Mục tiêu<select name="goal"><option>Tin nhắn</option><option>Chuyển đổi</option><option>Nhận diện</option><option>Lượt truy cập</option><option>Khác</option></select></label>
+        </div>
+        <label>Ngân sách (đ/tháng)<input type="number" name="bud" min="0" step="1000000" value="0"></label>
+        <div class="two">
+          <label>Từ ngày<input type="date" name="from"></label>
+          <label>Đến ngày<input type="date" name="to"></label>
+        </div>
+        <div class="row"><button class="btn" type="submit">Tạo thư mục</button><button class="crumb" type="button" id="clCancel">Huỷ</button></div>
+      </form>
       <div id="tab-cal" class="tablewrap" hidden><table><thead><tr><th>Tên</th><th>Mục tiêu</th><th class="num">Ngân sách</th><th>Thời gian thực hiện</th></tr></thead><tbody>${calRows}</tbody></table></div></div>
     <div class="block"><h3>Khách mới</h3><p class="hint">Nhập brief và yêu cầu, chọn agent, rồi nhận bản tóm tắt và bản tư vấn kèm bảng giá.</p>
       <div class="intake">
@@ -321,20 +345,28 @@ const FOLDERS = [
 ];
 VIEWS.client = function (i) {
   const c = CLIENTS[i], s = c.s;
-  const has = [true, true, s >= 1, s >= 3, s >= 4, s >= 5, s >= 6];
-  const rows = FOLDERS.map((f, k) => `<div class="folder"><div class="fh"><b class="mono">${f[0]}</b><span class="pill ${has[k] ? 'on' : ''}" id="fp${k}">${has[k] ? 'Có file' : 'Trống'}</span><a class="pill on" id="fl${k}" target="_blank" rel="noopener"${link(c.links && c.links[f[0]]) ? ` href="${link(c.links[f[0]])}"` : ' hidden'}>Mở Drive ↗</a>${f[3].includes('khách') ? '<span class="pill on">Gửi được cho khách</span>' : ''}</div>
-    <p>${f[1]}</p><dl><div><dt>Ghi</dt><dd>${f[2]}</dd></div><div><dt>Đọc</dt><dd>${f[3]}</dd></div></dl></div>`).join('');
+  const lk = f => link(c.links && c.links[f]);
+  const rows = FOLDERS.map((f, k) => `<div class="folder"><div class="fh"><b class="mono">${f[0]}</b><span class="pill ${lk(f[0]) ? 'on' : ''}" id="fp${k}">${lk(f[0]) ? 'Đã gắn link' : 'Chưa gắn link'}</span><a class="pill on" id="fl${k}" target="_blank" rel="noopener"${lk(f[0]) ? ` href="${lk(f[0])}"` : ' hidden'}>Mở Drive ↗</a>${f[3].includes('khách') ? '<span class="pill on">Gửi được cho khách</span>' : ''}</div>
+    <p>${f[1]}</p><dl><div><dt>Ghi</dt><dd>${f[2]}</dd></div><div><dt>Đọc</dt><dd>${f[3]}</dd></div></dl>
+    <input class="flink" type="url" data-flink="${f[0]}" value="${esc(lk(f[0]))}" placeholder="Dán link thư mục ${f[0]} (không bắt buộc)" aria-label="Link Drive của ${f[0]}"></div>`).join('');
+  const stageOpts = STAGES.map((t, k) => `<option value="${k}"${k === s ? ' selected' : ''}>${t}</option>`).join('');
   const review = s >= 5 ? `<div class="block"><h3>Nhận xét của agent Báo cáo<span class="tag">ví dụ</span></h3>
     <div class="review"><span class="pill">Bản nháp, chờ bạn duyệt</span>
       <p>Agent đọc số liệu tuần trong <span class="mono">04_So-ads-Meta</span> rồi viết nhận xét vào <span class="mono">05_Bao-cao</span>:</p>
       <ul><li>Mẫu Video01 đang cho chi phí mỗi tin nhắn tốt hơn Ảnh02.</li><li>Nhóm Lookalike còn trong giai đoạn học, chưa nên chỉnh lớn.</li><li>Đề xuất: tăng nhẹ ngân sách Video01, giữ nguyên Ảnh02 thêm 3 ngày rồi xem lại.</li></ul>
       <p class="hint">Bạn sửa và duyệt xong mới gửi cho khách. Mọi thay đổi ghi vào <span class="mono">06_Nhat-ky-toi-uu</span>.</p></div></div>` : '';
-  return `<div class="iso"><b>Tách riêng theo khách</b>
-      <p>Agent làm việc cho ${c.n} chỉ đọc và ghi trong 7 thư mục dưới đây. Dữ liệu của khách khác không lẫn vào.</p>
-      <p>Sau này khi cho khách đăng nhập, ${c.n} chỉ thấy bản tư vấn và báo cáo đã duyệt của chính họ.</p>
-      <p id="drvStat">${driveStatus(c)}</p>
-      <div class="drvact">${link(c.drive) ? `<a class="btn" href="${link(c.drive)}" target="_blank" rel="noopener">Mở thư mục Drive của ${c.n} ↗</a>` : ''}${Drive.configured() ? `<button class="btn" type="button" id="drvSync" data-sync="${i}">${Drive.connected() ? 'Đồng bộ thư mục Drive' : 'Kết nối và tạo thư mục trên Drive'}</button>` : ''}</div></div>
-    <div class="block"><h3>Thư mục của ${c.n}</h3><p class="hint">Mỗi thư mục ghi rõ ai được ghi và ai được đọc.</p><div class="folders">${rows}</div></div>${review}`;
+  const n = esc(c.n);
+  return `<div class="iso"><b>Thư mục Drive của ${n}</b>
+      ${link(c.drive) ? `<div class="drvact"><a class="btn" href="${link(c.drive)}" target="_blank" rel="noopener">Mở thư mục Drive của ${n} ↗</a></div>
+      <a class="dl" href="${link(c.drive)}" target="_blank" rel="noopener">${esc(c.drive)}</a>` : `<p>Chưa có link. Tạo thư mục cho khách trên Google Drive, copy link rồi dán vào ô dưới.</p>`}
+      <div class="row"><input type="url" id="clDrive" value="${esc(link(c.drive))}" placeholder="https://drive.google.com/drive/folders/..." aria-label="Link thư mục Drive của ${n}"><button class="btn" type="button" id="clDriveSave">${link(c.drive) ? 'Lưu link mới' : 'Lưu link'}</button></div>
+      <p id="drvStat" class="hint">${driveStatus(c)}</p>
+      ${Drive.configured() ? `<div class="drvact"><button class="btn" type="button" id="drvSync" data-sync="${i}">${Drive.connected() ? 'Đồng bộ thư mục Drive' : 'Kết nối và tạo thư mục trên Drive'}</button></div>` : ''}</div>
+    <div class="iso"><b>Thông tin khách</b>
+      <div class="two"><label>Giai đoạn<select id="clStage">${stageOpts}</select></label><label>Ghi chú<input type="text" id="clNote" value="${esc(c.note || '')}" maxlength="120"></label></div>
+      <p class="hint">Agent làm việc cho ${n} chỉ đọc và ghi trong 7 thư mục dưới đây. Dữ liệu của khách khác không lẫn vào.</p>
+      <div class="row"><button class="crumb danger" type="button" id="clDel">Xoá khách này khỏi web</button></div></div>
+    <div class="block"><h3>Thư mục của ${n}</h3><p class="hint">Mỗi thư mục ghi rõ ai được ghi và ai được đọc. Dán link thư mục con vào ô cuối mỗi thẻ, link tự lưu.</p><div class="folders">${rows}</div></div>${review}`;
 };
 
 /* ===== Điều hướng kiểu trình duyệt: lùi, tiến, tải lại, thanh địa chỉ ===== */
@@ -345,6 +377,7 @@ const hist = []; let hi = -1, cur = { m: null, c: null }, tm;
 function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(tm); tm = setTimeout(() => { el.hidden = true; }, 2800); }
 
 function render(v, focus) {
+  if (v.c != null && !CLIENTS[v.c]) v = { m: 'ads', c: null };
   cur = v;
   const home = !v.m, m = MODULES.find(x => x.id === v.m);
   $('homeView').hidden = !home; $('modView').hidden = home;
@@ -354,7 +387,7 @@ function render(v, focus) {
   if (location.hash.replace(/^#\/?/, '') !== route) history.replaceState(null, '', route ? '#/' + route : location.pathname);
   if (!home) {
     if (v.c != null) {
-      $('modTitle').textContent = CLIENTS[v.c].n; $('modSub').textContent = 'Hồ sơ riêng, giai đoạn: ' + STAGES[CLIENTS[v.c].s];
+      $('modTitle').textContent = CLIENTS[v.c].n; $('modSub').textContent = 'Hồ sơ riêng, giai đoạn: ' + STAGES[CLIENTS[v.c].s] + (CLIENTS[v.c].goal ? ' · Mục tiêu: ' + CLIENTS[v.c].goal : '');
       $('modBody').innerHTML = VIEWS.client(v.c); $('crumb').textContent = '← Danh sách khách';
       if (Drive.connected()) syncClient(v.c, false);
     } else {
@@ -402,7 +435,7 @@ function calc() {
   const b = $('bud'), p = $('pct'); if (!b || !p) return;
   $('pctv').textContent = p.value; $('fee').textContent = fmt(Math.round((+b.value || 0) * p.value / 100));
 }
-const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 function setTab(t) {
   $('tab-all').hidden = t !== 'all'; $('tab-cal').hidden = t !== 'cal';
   document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
@@ -436,10 +469,42 @@ $('modBody').addEventListener('click', e => {
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   if (e.target.closest('#sum')) summarize();
   const sy = e.target.closest('[data-sync]'); if (sy) syncClient(+sy.dataset.sync, true);
+  if (e.target.closest('#newCl')) { const f = $('clForm'); f.hidden = false; f.n.focus(); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  if (e.target.closest('#clCancel')) { $('clForm').reset(); $('clForm').hidden = true; }
+  if (e.target.closest('#clDriveSave')) {
+    const v = $('clDrive').value.trim();
+    if (v && !link(v)) { toast('Link phải bắt đầu bằng https://'); return; }
+    CLIENTS[cur.c].drive = v; saveData(); render(cur, false); toast(v ? 'Đã lưu link Drive.' : 'Đã xoá link Drive.');
+  }
+  if (e.target.closest('#clDel')) {
+    const c = CLIENTS[cur.c];
+    if (!confirm(`Xoá "${c.n}" khỏi web? Thư mục trên Google Drive vẫn giữ nguyên.`)) return;
+    CLIENTS.splice(cur.c, 1); saveData(); go({ m: 'ads', c: null }); toast('Đã xoá ' + c.n + '.');
+  }
+});
+$('modBody').addEventListener('submit', e => {
+  if (e.target.id !== 'clForm') return;
+  e.preventDefault();
+  const f = e.target, name = f.n.value.trim(), drive = f.drive.value.trim();
+  if (!name) { toast('Nhập tên khách.'); return; }
+  if (drive && !link(drive)) { toast('Link Drive phải bắt đầu bằng https://'); return; }
+  CLIENTS.push({ n: name, s: +f.s.value, note: f.note.value.trim(), goal: f.goal.value, bud: +f.bud.value || 0, from: f.from.value, to: f.to.value, drive, links: {} });
+  saveData(); go({ m: 'ads', c: CLIENTS.length - 1 }); toast('Đã tạo thư mục ' + name + '.');
 });
 $('modBody').addEventListener('input', e => { if (e.target.id === 'bud' || e.target.id === 'pct') calc(); });
 $('modBody').addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.mk) { SEL[e.target.dataset.mk] = e.target.value; return; }
+  if (e.target.dataset && e.target.dataset.flink) {
+    const v = e.target.value.trim(), k = e.target.dataset.flink, c = CLIENTS[cur.c];
+    if (v && !link(v)) { toast('Link phải bắt đầu bằng https://'); return; }
+    c.links = c.links || {}; if (v) c.links[k] = v; else delete c.links[k];
+    saveData(); render(cur, false); toast(v ? 'Đã lưu link ' + k + '.' : 'Đã xoá link ' + k + '.'); return;
+  }
+  if (e.target.id === 'clStage' || e.target.id === 'clNote') {
+    const c = CLIENTS[cur.c];
+    if (e.target.id === 'clStage') c.s = +e.target.value; else c.note = e.target.value.trim();
+    saveData(); render(cur, false); toast('Đã lưu.'); return;
+  }
   const i = e.target.dataset && e.target.dataset.ad; if (i === undefined) return;
   const on = e.target.checked, pill = $('pill' + i); ADS[i].run = on;
   pill.textContent = on ? 'Đang chạy' : 'Chờ duyệt'; pill.classList.toggle('on', on);
@@ -449,7 +514,7 @@ $('modBody').addEventListener('change', e => {
 // Chỉ nhận link https để tránh chèn mã lạ vào trang
 function link(u) { return /^https:\/\/[^"<>\s]+$/.test(u || '') ? u : ''; }
 function driveStatus(c) {
-  if (!Drive.configured()) return c && link(c.drive) ? 'Google Drive: đã gắn link thư mục của khách.' : 'Google Drive: chưa gắn link. Dán link thư mục Drive vào ô drive của khách trong assets/app.js.';
+  if (!Drive.configured()) return 'Danh sách khách và link được lưu trong trình duyệt này. Khi nối Google Drive (Client ID), dữ liệu sẽ tự lưu lên Drive để dùng trên mọi máy.';
   return Drive.connected() ? 'Google Drive: đã kết nối. Trạng thái thư mục bên dưới lấy từ Drive.' : 'Google Drive: chưa kết nối. Bấm nút dưới để tạo sẵn 7 thư mục của khách trong Drive của bạn.';
 }
 function refreshDriveNote() {
@@ -458,20 +523,41 @@ function refreshDriveNote() {
     : Drive.connected() ? 'Đã kết nối Google Drive. Mỗi khách có một thư mục riêng ở đó.'
     : 'Google Drive chưa kết nối. Bấm nút Google Drive ở trên để đăng nhập.';
 }
+function saveData() {
+  dataTime = Date.now();
+  const d = { t: dataTime, clients: CLIENTS };
+  try { localStorage.setItem(DATA_KEY, JSON.stringify(d)); } catch (e) { toast('Trình duyệt không cho lưu dữ liệu.'); }
+  if (Drive.connected()) Drive.saveJson(DATA_FILE, d).catch(err => toast('Chưa lưu lên Drive: ' + err.message));
+  refreshCounts();
+}
+// Lấy bản mới hơn giữa trình duyệt và Drive
+async function pullData() {
+  const d = await Drive.loadJson(DATA_FILE);
+  if (d && Array.isArray(d.clients) && (d.t || 0) > dataTime) {
+    setClients(d);
+    try { localStorage.setItem(DATA_KEY, JSON.stringify(d)); } catch (e) { /* bỏ qua */ }
+    refreshCounts(); render(cur, false);
+  } else if (dataTime) await Drive.saveJson(DATA_FILE, { t: dataTime, clients: CLIENTS });
+}
+function refreshCounts() {
+  MODULES.find(x => x.id === 'ads').badge = CLIENTS.filter(c => c.s <= 2).length;
+  renderMap();
+  $('sPend').textContent = MODULES.reduce((s, m) => s + m.badge, 0);
+}
 async function openDrive() {
   if (!Drive.configured()) { window.open('https://drive.google.com/', '_blank', 'noopener'); toast('Chưa cấu hình Client ID nên chỉ mở Google Drive.'); return; }
   const w = window.open('about:blank', '_blank'); // mở trước để trình duyệt không chặn popup
   try {
     if (!Drive.connected()) await Drive.connect(false);
     const id = await Drive.root();
-    refreshDriveNote();
+    refreshDriveNote(); pullData().catch(err => toast(err.message));
     if (w) w.location = Drive.folderUrl(id); else window.open(Drive.folderUrl(id), '_blank', 'noopener');
   } catch (err) { if (w) w.close(); toast(err.message); }
 }
 async function syncClient(i, interactive) {
   const btn = $('drvSync'), stat = $('drvStat');
   try {
-    if (!Drive.connected()) { if (!interactive) return; await Drive.connect(false); }
+    if (!Drive.connected()) { if (!interactive) return; await Drive.connect(false); await pullData(); }
     if (btn) { btn.disabled = true; btn.textContent = 'Đang đồng bộ...'; }
     const m = MODULES.find(x => x.id === 'ads');
     const res = await Drive.ensureClient(m.title, CLIENTS[i].n, FOLDERS.map(f => f[0]));
@@ -502,3 +588,4 @@ window.addEventListener('hashchange', () => { const v = fromHash(); if (v.m !== 
 renderMap();
 hist.push(fromHash()); hi = 0; render(hist[0], false);
 refreshDriveNote();
+if (Drive.connected()) pullData().catch(() => {});
