@@ -59,6 +59,18 @@ Muốn tự lấy số liệu:
   và thêm một dòng vào tab "Phân tích ads" của Google Sheet (chi tiêu, CTR, CPM, kết quả, đề xuất...).
 - Google Sheet tên **Khanh's Work Space - Phân tích ads** nằm trong thư mục `Khanh's Work Space` trên Drive.
 
+## Đa tác tử
+Ô **Cách chạy** trên web có 2 chế độ:
+- **Đa tác tử** (mặc định):
+  - Brief: ① Tiếp nhận → ② Chiến lược → ③ Nội dung + ④ Tracking (chạy song song) → ⑤ Tổng hợp.
+    File tư vấn gồm bản gửi khách + phụ lục nội bộ (câu cần hỏi khách, toàn bộ mẫu nội dung, checklist tracking).
+  - Ads: ① Lấy số liệu → ② Báo cáo → ③ Nội dung (mẫu mới) + ④ Kiểm duyệt (soát số liệu) → ⑤ Lưu file.
+  - Mỗi brief dùng khoảng 5 lượt gọi AI, mất 1-3 phút. Bước nào lỗi (ví dụ Gemini quá tải) thì bấm lại nút, web chạy tiếp từ bước lỗi.
+- **Nhanh**: 1 agent làm tất cả, khoảng 30 giây, tốn 1 lượt gọi.
+
+Khung **Các agent của mục này** (cuối trang Job chạy ads) cho chọn model từng agent (Gemini hoặc Claude).
+Chọn Claude mà chưa có `CLAUDE_API_KEY` thì agent đó tự dùng Gemini.
+
 ## Cài đặt thêm (Script properties, không bắt buộc)
 | Property | Mặc định | Ý nghĩa |
 |---|---|---|

@@ -358,3 +358,21 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .sum a.btn { color: #fff; text-decoration: none; }
 .sum a.crumb { text-decoration: none; }
 .docs { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-weight: 600; }
+/* Đa tác tử: tiến độ từng agent */
+.pipe { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pipe li { background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 8px 10px; font-size: 14px; }
+.pipe .pi { display: inline-block; width: 20px; font-weight: 800; }
+.pipe li.run { border-color: var(--gold); }
+.pipe li.run .pi { animation: spin 1s linear infinite; }
+.pipe li.done { border-color: var(--okbg); }
+.pipe li.done .pi { color: var(--ok); }
+.pipe li.fail { border-color: var(--pin); }
+.pipe li.fail .pi { color: var(--pin); }
+.pipe .po:empty { display: none; }
+.pipe .po { margin-top: 4px; }
+.pipe summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--title); }
+.pipe pre { white-space: pre-wrap; font-size: 12px; }
+.pfinal:empty { display: none; }
+.pfinal { margin-top: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pipe li.run .pi { animation: none; } }

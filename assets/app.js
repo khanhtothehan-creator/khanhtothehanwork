@@ -31,12 +31,15 @@ let dataTime = 0;
 const setClients = d => { CLIENTS.splice(0, CLIENTS.length, ...d.clients); dataTime = d.t || 0; };
 try { const d = JSON.parse(localStorage.getItem(DATA_KEY)); if (d && Array.isArray(d.clients)) setClients(d); } catch (e) { /* dùng danh sách mặc định */ }
 
+/* Agent của mục ads: [tên, việc làm, model mặc định, mã agent ở backend] */
 const AGENTS = [
-  ['Tiếp nhận', 'Đọc brief, hỏi lại khách nếu thiếu thông tin.'],
-  ['Chiến lược', 'Đề xuất kênh, ngân sách, phễu.'],
-  ['Nội dung', 'Viết mẫu quảng cáo, gợi ý hình ảnh.'],
-  ['Tracking', 'Tạo checklist cài đặt theo từng nền tảng.'],
-  ['Báo cáo', 'Đọc số liệu, viết nhận xét và đề xuất chỉnh sửa. Bạn duyệt trước khi gửi khách.', 'Claude']
+  ['Tiếp nhận', 'Đọc brief, tóm tắt, liệt kê câu cần hỏi lại khách.', 'Gemini', 'tiep_nhan'],
+  ['Chiến lược', 'Đề xuất mục tiêu, tệp khách, cấu trúc chiến dịch, ngân sách, KPI.', 'Gemini', 'chien_luoc'],
+  ['Nội dung', 'Viết mẫu quảng cáo, ý tưởng hình ảnh/video, mẫu mới khi ads yếu.', 'Gemini', 'noi_dung'],
+  ['Tracking', 'Tạo checklist Pixel, sự kiện, UTM theo kênh nhận khách.', 'Gemini', 'tracking'],
+  ['Tổng hợp', 'Ghép kết quả thành bản tư vấn và báo giá gửi khách.', 'Gemini', 'tong_hop'],
+  ['Báo cáo', 'Đọc số liệu ads, đánh giá và đề xuất tối ưu.', 'Gemini', 'bao_cao'],
+  ['Kiểm duyệt', 'Soát báo cáo: số liệu bịa, mâu thuẫn, đề xuất rủi ro.', 'Gemini', 'kiem_duyet']
 ];
 const SCHOOLS = [
   ['政大 NCCU', 'Global Communication and Innovation Technology (GCIT)'],
@@ -248,6 +251,8 @@ const VIEWS = {
         <select id="consultCl" data-mk="consultCl">${clOpts}</select>
         <label for="brief">Brief + yêu cầu của khách</label>
         <textarea id="brief" rows="6" placeholder="Dán brief của khách vào đây: sản phẩm, mục tiêu, ngân sách, thời gian, khu vực, khách hàng mục tiêu...">${esc(SEL.brief || '')}</textarea>
+        <label for="mode">Cách chạy</label>
+        <select id="mode" data-mk="mode"><option value="multi"${SEL.mode !== 'fast' ? ' selected' : ''}>Đa tác tử: 5 agent phối hợp (kỹ hơn, 1-3 phút)</option><option value="fast"${SEL.mode === 'fast' ? ' selected' : ''}>Nhanh: 1 agent (khoảng 30 giây)</option></select>
         <div class="row"><button type="button" class="btn" id="sum">Gửi AI phân tích</button><button type="button" class="crumb" id="aiSet">Cài đặt AI</button></div>
         <div id="sumOut" hidden></div>
       </div></div>
@@ -261,7 +266,7 @@ const VIEWS = {
         <input type="range" id="pct" min="10" max="20" step="1" value="15">
         <p class="out">Phí: <span id="fee"></span></p>
       </div></div>
-    ${agentsBlock('ag', AGENTS, 'Mỗi agent có hướng dẫn riêng và dùng model bạn chọn.')}`;
+    ${agentsBlock('ag', AGENTS, 'Chế độ đa tác tử: Tiếp nhận → Chiến lược → Nội dung + Tracking (song song) → Tổng hợp. Phân tích ads: Báo cáo → Nội dung + Kiểm duyệt. Chọn model cho từng agent; Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}`;
   },
   zh() {
     return `
@@ -297,7 +302,10 @@ const VIEWS = {
 };
 
 /* ===== Chọn model cho agent ở mọi mục ===== */
-const SEL = {};
+const SEL = (() => { try { return JSON.parse(localStorage.getItem('kws.sel')) || {}; } catch (e) { return {}; } })();
+const saveSel = () => { try { const o = {}; Object.keys(SEL).filter(k => /^(ag\d|mode)/.test(k)).forEach(k => { o[k] = SEL[k]; }); localStorage.setItem('kws.sel', JSON.stringify(o)); } catch (e) { /* bỏ qua */ } };
+// Model người dùng chọn cho một agent (ô chọn ở khung "Các agent của mục này")
+const agentModel = key => { const i = AGENTS.findIndex(a => a[3] === key.replace(/_ads$/, '')); return (SEL['ag' + i] || (AGENTS[i] && AGENTS[i][2]) || 'Gemini').toLowerCase(); };
 function agentsBlock(key, list, hint) {
   const cards = list.map((a, i) => {
     const id = key + i, cur = SEL[id] || a[2] || 'Gemini';
@@ -479,32 +487,116 @@ function setTab(t) {
 const wait = (btn, on, label) => { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label; } else if (btn.dataset.l) btn.textContent = btn.dataset.l; };
 const folderOf = (c, sub) => c ? link(c.links && c.links[sub]) || link(c.drive) : '';
 
+/* ===== Đa tác tử: website điều phối, mỗi bước gọi một agent ở backend ===== */
+const STEP_ICON = { wait: '○', run: '◔', done: '✓', fail: '✕' };
+// Vẽ danh sách bước, trả về hàm cập nhật trạng thái từng bước
+function pipeline(el, steps) {
+  el.hidden = false;
+  el.innerHTML = `<ol class="pipe">${steps.map(s => `<li id="ps-${s.id}" class="wait"><span class="pi">${STEP_ICON.wait}</span><b>${s.label}</b> <span class="hint-i">${s.desc}</span><div class="po"></div></li>`).join('')}</ol><div class="pfinal"></div>`;
+  return (id, state, html) => {
+    const li = el.querySelector('#ps-' + id); if (!li) return;
+    li.className = state; li.querySelector('.pi').textContent = STEP_ICON[state];
+    if (html !== undefined) li.querySelector('.po').innerHTML = html;
+  };
+}
+const detailsOf = (title, body) => `<details><summary>${title}</summary><div class="mdout">${body}</div></details>`;
+// Gọi một agent; ghi lại kết quả để chạy lại không phải làm lại bước đã xong
+async function agentStep(set, cache, id, agent, input) {
+  if (cache[id] !== undefined) { set(id, 'done', detailsOf('Xem kết quả (đã có từ lần trước)', fmtOut(cache[id]))); return cache[id]; }
+  set(id, 'run', '<span class="hint-i">đang làm...</span>');
+  try {
+    const d = await AI.call('agent', { agent, provider: agentModel(agent), input });
+    cache[id] = d.output;
+    set(id, 'done', detailsOf(`Xem kết quả (${d.provider})`, fmtOut(d.output)));
+    return d.output;
+  } catch (err) { set(id, 'fail', `<span class="hint-i">${esc(err.message)}</span>`); throw err; }
+}
+const fmtOut = o => typeof o === 'string' ? md(o) : o.bao_cao_markdown !== undefined && o.danh_gia ? `<p><b>${esc(o.danh_gia)}</b>: ${esc(o.tom_tat)}</p>` + md(o.bao_cao_markdown)
+  : o.van_de ? (o.dat ? '<p>Đạt, không phát hiện vấn đề.</p>' : `<ul>${o.van_de.map(v => `<li>${esc(v)}</li>`).join('')}</ul>`) : `<pre>${esc(JSON.stringify(o, null, 1))}</pre>`;
+const RUNS = {}; // kết quả từng bước theo brief/ads, để chạy tiếp khi lỗi giữa chừng
+
+async function summarizeMulti(c, brief, outEl) {
+  const key = 'b|' + (c ? c.n : '') + '|' + brief, cache = RUNS[key] = RUNS[key] || {};
+  const set = pipeline(outEl, [
+    { id: 'tn', label: '① Tiếp nhận', desc: 'tóm tắt brief, câu cần hỏi lại' },
+    { id: 'cl', label: '② Chiến lược', desc: 'tệp khách, cấu trúc, ngân sách, KPI' },
+    { id: 'nd', label: '③ Nội dung', desc: 'mẫu quảng cáo (song song với ④)' },
+    { id: 'tk', label: '④ Tracking', desc: 'checklist đo lường' },
+    { id: 'th', label: '⑤ Tổng hợp', desc: 'bản tư vấn + báo giá, lưu Google Docs và Sheet' }
+  ]);
+  const inp = { client: c ? c.n : 'Khách mới', brief };
+  inp.tiep_nhan = await agentStep(set, cache, 'tn', 'tiep_nhan', inp);
+  inp.chien_luoc = await agentStep(set, cache, 'cl', 'chien_luoc', inp);
+  [inp.noi_dung, inp.tracking] = await Promise.all([agentStep(set, cache, 'nd', 'noi_dung', inp), agentStep(set, cache, 'tk', 'tracking', inp)]);
+  set('th', 'run', '<span class="hint-i">đang viết bản tư vấn và lưu file...</span>');
+  try {
+    const d = await AI.call('consultSave', { provider: agentModel('tong_hop'), input: inp, folder: folderOf(c, '02_Tu-van') });
+    set('th', 'done', `<span class="hint-i">${d.provider}</span>`);
+    delete RUNS[key];
+    return d;
+  } catch (err) { set('th', 'fail', `<span class="hint-i">${esc(err.message)}</span>`); throw err; }
+}
+
 async function summarize() {
   const brief = $('brief').value.trim(), ci = $('consultCl').value, c = ci === '' ? null : CLIENTS[+ci];
   if (!brief) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
   const btn = $('sum'), outEl = $('sumOut');
-  wait(btn, true, 'AI đang phân tích... (khoảng 1 phút)');
+  const multi = $('mode').value !== 'fast';
+  wait(btn, true, multi ? 'Các agent đang làm việc... (1-3 phút)' : 'AI đang phân tích... (khoảng 1 phút)');
   try {
-    const d = await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', folder: folderOf(c, '02_Tu-van') });
+    const d = multi ? await summarizeMulti(c, brief, outEl)
+      : await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', folder: folderOf(c, '02_Tu-van') });
     if (c) { c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url }); saveData(); }
     SEL.brief = '';
     if (!$('sumOut')) return; // đã chuyển trang
     outEl.hidden = false;
-    outEl.innerHTML = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
+    const html = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
       <div class="mdout">${md(d.text)}</div>
-      <p class="hint" style="margin:0">Đây là bản nháp của AI. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.</p></div>`;
+      <p class="hint" style="margin:0">Đây là bản nháp của AI. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.${multi ? ' File có thêm phụ lục nội bộ: câu cần hỏi khách, toàn bộ mẫu nội dung, checklist tracking.' : ''}</p></div>`;
+    if (multi) outEl.querySelector('.pfinal').innerHTML = html; else outEl.innerHTML = html;
     toast('Đã tạo file tư vấn.');
-  } catch (err) { toast(err.message); }
+  } catch (err) { toast(err.message + (multi ? ' Bấm lại "Gửi AI phân tích" để chạy tiếp từ bước lỗi.' : '')); }
   finally { wait(btn, false); }
+}
+
+async function analyzeAdMulti(c, a, box) {
+  const key = 'a|' + c.n + '|' + a.url + '|' + (a.metrics || '') + '|' + (a.note || ''), cache = RUNS[key] = RUNS[key] || {};
+  const set = pipeline(box, [
+    { id: 'sl', label: '① Lấy số liệu', desc: 'từ Meta hoặc số liệu bạn dán' },
+    { id: 'bc', label: '② Báo cáo', desc: 'đánh giá, đề xuất tối ưu' },
+    { id: 'nd', label: '③ Nội dung', desc: 'mẫu quảng cáo mới để thử (song song với ④)' },
+    { id: 'kd', label: '④ Kiểm duyệt', desc: 'soát số liệu và đề xuất' },
+    { id: 'lu', label: '⑤ Lưu file', desc: 'Google Docs + Google Sheet' }
+  ]);
+  let data = cache.sl;
+  if (!data) {
+    set('sl', 'run');
+    try { data = cache.sl = await AI.call('adData', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '' }); }
+    catch (err) { set('sl', 'fail', `<span class="hint-i">${esc(err.message)}</span>`); throw err; }
+  }
+  set('sl', 'done', data.metaNote ? `<span class="hint-i">${esc(data.metaNote)}</span>` : '');
+  const bc = await agentStep(set, cache, 'bc', 'bao_cao', { ad: data.ad });
+  const [nd, kd] = await Promise.all([
+    agentStep(set, cache, 'nd', 'noi_dung_ads', { ad: data.ad, bao_cao: bc }),
+    agentStep(set, cache, 'kd', 'kiem_duyet', { ad: data.ad, bao_cao: bc })
+  ]);
+  set('lu', 'run');
+  try {
+    const d = await AI.call('adSave', { ad: data.ad, bao_cao: bc, noi_dung: nd, kiem_duyet: kd, url: a.url, folder: folderOf(c, '05_Bao-cao') });
+    set('lu', 'done'); delete RUNS[key];
+    return { ...d, result: bc, metaNote: data.metaNote, check: kd };
+  } catch (err) { set('lu', 'fail', `<span class="hint-i">${esc(err.message)}</span>`); throw err; }
 }
 
 async function analyzeAd(ci, ai) {
   const c = CLIENTS[ci], a = c && c.ads && c.ads[ai]; if (!a) return;
   const btn = document.querySelector(`[data-analyze="${ci}:${ai}"]`);
   wait(btn, true, 'Đang phân tích...');
-  const box = $(`adout-${ci}-${ai}`); if (box) { box.hidden = false; box.innerHTML = '<p class="hint">AI đang lấy số liệu và phân tích, khoảng 1 phút...</p>'; }
+  const box = $(`adout-${ci}-${ai}`), multi = SEL.mode !== 'fast';
+  if (box && !multi) { box.hidden = false; box.innerHTML = '<p class="hint">AI đang lấy số liệu và phân tích, khoảng 1 phút...</p>'; }
   try {
-    const d = await AI.call('analyzeAd', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '', folder: folderOf(c, '05_Bao-cao') });
+    const d = multi && box ? await analyzeAdMulti(c, a, box)
+      : await AI.call('analyzeAd', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '', folder: folderOf(c, '05_Bao-cao') });
     const r = d.result, t = new Date().toLocaleString('vi-VN');
     if (!a.name && d.name) a.name = d.name;
     a.last = { t, danh_gia: r.danh_gia, tom_tat: r.tom_tat, doc: d.doc.url, sheet: d.sheet };
@@ -515,12 +607,13 @@ async function analyzeAd(ci, ai) {
       nb.hidden = false;
       nb.innerHTML = `${d.metaNote ? `<p class="hint">${esc(d.metaNote)}</p>` : ''}<div class="kpis">${[['Chi tiêu', r.chi_tieu], ['Hiển thị', r.hien_thi], ['CTR', r.ctr], ['CPM', r.cpm], ['Kết quả', r.ket_qua], ['Chi phí/kết quả', r.chi_phi_moi_ket_qua]].map(k => `<div><span>${k[0]}</span><b>${esc(k[1])}</b></div>`).join('')}</div>
         <h4>Nên làm ngay</h4><ul>${r.de_xuat.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        ${d.check ? `<h4>Kiểm duyệt</h4>${d.check.dat ? '<p class="hint">Đạt, không phát hiện vấn đề.</p>' : `<ul>${d.check.van_de.map(x => `<li>${esc(x)}</li>`).join('')}</ul><p class="hint">File phân tích dùng bản báo cáo đã được agent Kiểm duyệt sửa.</p>`}` : ''}
         <details><summary>Xem báo cáo đầy đủ</summary><div class="mdout">${md(r.bao_cao_markdown)}</div></details>`;
     }
     toast('Đã tạo file phân tích và cập nhật Google Sheet.');
   } catch (err) {
-    toast(err.message);
-    const nb = $(`adout-${ci}-${ai}`); if (nb) nb.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
+    toast(err.message + (multi ? ' Bấm "Phân tích" lần nữa để chạy tiếp từ bước lỗi.' : ''));
+    const nb = $(`adout-${ci}-${ai}`); if (nb && !multi) nb.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
   } finally { wait(document.querySelector(`[data-analyze="${ci}:${ai}"]`), false); }
 }
 
@@ -578,7 +671,7 @@ $('modBody').addEventListener('submit', e => {
 });
 $('modBody').addEventListener('input', e => { if (e.target.id === 'bud' || e.target.id === 'pct') calc(); if (e.target.id === 'brief') SEL.brief = e.target.value; });
 $('modBody').addEventListener('change', e => {
-  if (e.target.dataset && e.target.dataset.mk) { SEL[e.target.dataset.mk] = e.target.value; return; }
+  if (e.target.dataset && e.target.dataset.mk) { SEL[e.target.dataset.mk] = e.target.value; saveSel(); return; }
   if (e.target.dataset && e.target.dataset.flink) {
     const v = e.target.value.trim(), k = e.target.dataset.flink, c = CLIENTS[cur.c];
     if (v && !link(v)) { toast('Link phải bắt đầu bằng https://'); return; }
