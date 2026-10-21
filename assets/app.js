@@ -740,19 +740,21 @@ const readB64 = file => new Promise((ok, no) => { const fr = new FileReader(); f
 async function uploadFiles(sub, files) {
   const ci = cur.c, c = CLIENTS[ci]; if (!c || !files.length) return;
   const st = () => $('upl-' + sub);
-  let done = 0;
+  let done = 0; const errs = [];
   for (const file of files) {
-    if (file.size > MAX_UP) { toast(`"${file.name}" lớn hơn 20MB, hãy tải trực tiếp lên Google Drive.`); continue; }
+    if (file.size > MAX_UP) { errs.push(`"${file.name}" lớn hơn 20MB, hãy tải trực tiếp lên Google Drive.`); continue; }
     if (st()) st().textContent = `Đang tải ${file.name} (${done + 1}/${files.length})...`;
     try {
       const d = await AI.call('upload', { client: c.n, sub, name: file.name, mime: file.type, data: await readB64(file), ...dirs(c, sub) });
       applyFolders(c, d.folders);
       c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url, sub, up: true });
       saveData(); done++;
-    } catch (err) { toast(file.name + ': ' + err.message); }
+    } catch (err) { errs.push(file.name + ': ' + err.message); }
   }
   if (done) toast(`Đã tải ${done} file lên thư mục ${sub} của ${c.n}.`);
-  if (cur.c === ci) render(cur, false);
+  if (done && cur.c === ci) render(cur, false);
+  // Lỗi hiện cố định dưới ô tải file để đọc được
+  if (errs.length) { const el = st(); if (el) { el.classList.add('err'); el.textContent = '✕ Chưa tải được: ' + errs.join(' · '); } toast(errs[0]); }
 }
 document.addEventListener('change', e => { const sub = e.target.dataset && e.target.dataset.upl; if (sub) { uploadFiles(sub, [...e.target.files]); e.target.value = ''; } });
 document.addEventListener('dragover', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('over'); } });

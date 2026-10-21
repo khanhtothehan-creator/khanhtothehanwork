@@ -484,3 +484,4 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .fdel { margin-left: auto; border: 0; background: none; color: var(--pin); font-weight: 800; cursor: pointer; padding: 0 6px; border-radius: 6px; line-height: 1.6; }
 .fdel:hover, .fdel:focus-visible { background: #F8D2D2; }
 .fdel:disabled { opacity: .4; cursor: wait; }
+.uplst.err { color: var(--pin); }
