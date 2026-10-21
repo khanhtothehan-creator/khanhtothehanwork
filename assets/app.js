@@ -381,8 +381,9 @@ function md(t) {
 VIEWS.client = function (i) {
   const c = CLIENTS[i], s = c.s;
   const lk = f => link(c.links && c.links[f]);
+  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">📄 ${esc(d.title)}</a></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
   const rows = FOLDERS.map((f, k) => `<div class="folder"><div class="fh"><b class="mono">${f[0]}</b><span class="pill ${lk(f[0]) ? 'on' : ''}" id="fp${k}">${lk(f[0]) ? 'Đã gắn link' : 'Chưa gắn link'}</span><a class="pill on" id="fl${k}" target="_blank" rel="noopener"${lk(f[0]) ? ` href="${lk(f[0])}"` : ' hidden'}>Mở Drive ↗</a>${f[3].includes('khách') ? '<span class="pill on">Gửi được cho khách</span>' : ''}</div>
-    <p>${f[1]}</p><dl><div><dt>Ghi</dt><dd>${f[2]}</dd></div><div><dt>Đọc</dt><dd>${f[3]}</dd></div></dl>
+    <p>${f[1]}</p>${docsIn(f[0])}<dl><div><dt>Ghi</dt><dd>${f[2]}</dd></div><div><dt>Đọc</dt><dd>${f[3]}</dd></div></dl>
     <input class="flink" type="url" data-flink="${f[0]}" value="${esc(lk(f[0]))}" placeholder="Dán link thư mục ${f[0]} (không bắt buộc)" aria-label="Link Drive của ${f[0]}"></div>`).join('');
   const stageOpts = STAGES.map((t, k) => `<option value="${k}"${k === s ? ' selected' : ''}>${t}</option>`).join('');
   const review = s >= 5 ? `<div class="block"><h3>Nhận xét của agent Báo cáo<span class="tag">ví dụ</span></h3>
@@ -485,7 +486,17 @@ function setTab(t) {
   document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
 }
 const wait = (btn, on, label) => { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label; } else if (btn.dataset.l) btn.textContent = btn.dataset.l; };
-const folderOf = (c, sub) => c ? link(c.links && c.links[sub]) || link(c.drive) : '';
+// Thư mục lưu file: thư mục con của khách (nếu có link), không thì thư mục khách để backend tạo thư mục con
+const dirs = (c, sub) => ({ folder: c ? link(c.links && c.links[sub]) : '', clientFolder: c ? link(c.drive) : '' });
+// Backend trả về link thư mục khách và 7 thư mục con (tự tạo nếu chưa có) → lưu vào hồ sơ khách
+function applyFolders(c, f) {
+  if (!c || !f) return;
+  if (f.client && !link(c.drive)) c.drive = f.client;
+  c.links = c.links || {};
+  Object.keys(f.subs || {}).forEach(n => { if (!link(c.links[n])) c.links[n] = f.subs[n]; });
+  if (f.sub && f.target && !link(c.links[f.sub])) c.links[f.sub] = f.target;
+}
+const addDoc = (c, d, sub) => { c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url, sub: (d.folders && d.folders.sub) || sub }); };
 
 /* ===== Đa tác tử: website điều phối, mỗi bước gọi một agent ở backend ===== */
 const STEP_ICON = { wait: '○', run: '◔', done: '✓', fail: '✕' };
@@ -530,7 +541,7 @@ async function summarizeMulti(c, brief, outEl) {
   [inp.noi_dung, inp.tracking] = await Promise.all([agentStep(set, cache, 'nd', 'noi_dung', inp), agentStep(set, cache, 'tk', 'tracking', inp)]);
   set('th', 'run', '<span class="hint-i">đang viết bản tư vấn và lưu file...</span>');
   try {
-    const d = await AI.call('consultSave', { provider: agentModel('tong_hop'), input: inp, folder: folderOf(c, '02_Tu-van') });
+    const d = await AI.call('consultSave', { provider: agentModel('tong_hop'), input: inp, ...dirs(c, '02_Tu-van') });
     set('th', 'done', `<span class="hint-i">${d.provider}</span>`);
     delete RUNS[key];
     return d;
@@ -538,19 +549,31 @@ async function summarizeMulti(c, brief, outEl) {
 }
 
 async function summarize() {
-  const brief = $('brief').value.trim(), ci = $('consultCl').value, c = ci === '' ? null : CLIENTS[+ci];
+  const brief = $('brief').value.trim(), ci = $('consultCl').value;
   if (!brief) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
+  let c = ci === '' ? null : CLIENTS[+ci];
+  if (!c) {
+    // Khách mới: tạo hồ sơ + thư mục trước, để file tư vấn lưu đúng thư mục của khách
+    const name = (prompt('Tên khách mới (sẽ tạo hồ sơ và thư mục Drive cho khách này):', '') || '').trim();
+    if (!name) return;
+    c = { n: name, s: 0, note: 'Brief vừa nhận', goal: '', bud: 0, from: '', to: '', drive: '', links: {} };
+    CLIENTS.push(c); saveData();
+    SEL.consultCl = String(CLIENTS.length - 1);
+    const sel = $('consultCl'); sel.add(new Option(name, SEL.consultCl, true, true));
+  }
   const btn = $('sum'), outEl = $('sumOut');
   const multi = $('mode').value !== 'fast';
   wait(btn, true, multi ? 'Các agent đang làm việc... (1-3 phút)' : 'AI đang phân tích... (khoảng 1 phút)');
   try {
     const d = multi ? await summarizeMulti(c, brief, outEl)
-      : await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', folder: folderOf(c, '02_Tu-van') });
-    if (c) { c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url }); saveData(); }
+      : await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', ...dirs(c, '02_Tu-van') });
+    applyFolders(c, d.folders); addDoc(c, d, '02_Tu-van'); saveData();
+    const slug = '#/ads/' + slugify(c.n);
     SEL.brief = '';
     if (!$('sumOut')) return; // đã chuyển trang
     outEl.hidden = false;
-    const html = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
+    const html = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(c.links['02_Tu-van'] || c.drive)}" target="_blank" rel="noopener">Thư mục 02_Tu-van ↗</a><a class="crumb" href="${slug}">Hồ sơ ${esc(c.n)}</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
+      <p class="hint" style="margin:0">Đã lưu vào thư mục Drive của ${esc(c.n)}. Mở hồ sơ khách để xem lại bất cứ lúc nào.</p>
       <div class="mdout">${md(d.text)}</div>
       <p class="hint" style="margin:0">Đây là bản nháp của AI. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.${multi ? ' File có thêm phụ lục nội bộ: câu cần hỏi khách, toàn bộ mẫu nội dung, checklist tracking.' : ''}</p></div>`;
     if (multi) outEl.querySelector('.pfinal').innerHTML = html; else outEl.innerHTML = html;
@@ -582,7 +605,7 @@ async function analyzeAdMulti(c, a, box) {
   ]);
   set('lu', 'run');
   try {
-    const d = await AI.call('adSave', { ad: data.ad, bao_cao: bc, noi_dung: nd, kiem_duyet: kd, url: a.url, folder: folderOf(c, '05_Bao-cao') });
+    const d = await AI.call('adSave', { ad: data.ad, bao_cao: bc, noi_dung: nd, kiem_duyet: kd, url: a.url, ...dirs(c, '05_Bao-cao') });
     set('lu', 'done'); delete RUNS[key];
     return { ...d, result: bc, metaNote: data.metaNote, check: kd };
   } catch (err) { set('lu', 'fail', `<span class="hint-i">${esc(err.message)}</span>`); throw err; }
@@ -596,11 +619,11 @@ async function analyzeAd(ci, ai) {
   if (box && !multi) { box.hidden = false; box.innerHTML = '<p class="hint">AI đang lấy số liệu và phân tích, khoảng 1 phút...</p>'; }
   try {
     const d = multi && box ? await analyzeAdMulti(c, a, box)
-      : await AI.call('analyzeAd', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '', folder: folderOf(c, '05_Bao-cao') });
+      : await AI.call('analyzeAd', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '', ...dirs(c, '05_Bao-cao') });
     const r = d.result, t = new Date().toLocaleString('vi-VN');
     if (!a.name && d.name) a.name = d.name;
     a.last = { t, danh_gia: r.danh_gia, tom_tat: r.tom_tat, doc: d.doc.url, sheet: d.sheet };
-    c.docs = c.docs || []; c.docs.unshift({ t, title: d.doc.title, url: d.doc.url });
+    applyFolders(c, d.folders); addDoc(c, d, '05_Bao-cao');
     saveData(); render(cur, false);
     const nb = $(`adout-${ci}-${ai}`);
     if (nb) {

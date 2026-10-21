@@ -376,3 +376,6 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .pfinal { margin-top: 10px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .pipe li.run .pi { animation: none; } }
+.fdocs { margin: 6px 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.fdocs a { color: var(--title); font-weight: 800; font-size: 13px; text-decoration: none; word-break: break-word; }
+.fdocs a:hover { text-decoration: underline; }

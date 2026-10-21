@@ -182,10 +182,11 @@ function consult(req) {
   const client = String(req.client || 'Khách mới');
   const text = ai(CONSULT_SYSTEM, `Tên khách: ${client}\n\nBrief và yêu cầu của khách:\n${brief}`);
   const title = `Tư vấn - ${client} - ${today()}`;
-  const doc = writeDoc(title, text, folderFrom(req.folder, 'Tư vấn'));
+  const folders = clientFolders(req, client, '02_Tu-van');
+  const doc = writeDoc(title, text, folders.target);
   logRow('Tư vấn', ['Thời gian', 'Khách', 'Brief (rút gọn)', 'File tư vấn'],
     [new Date(), client, brief.slice(0, 300), doc.url]);
-  return { ok: true, text, doc, sheet: sheetUrl() };
+  return { ok: true, text, doc, sheet: sheetUrl(), folders: folders.links };
 }
 
 /* ===== 2. Link ads → số liệu Meta → phân tích ===== */
@@ -234,18 +235,19 @@ const adPrompt = input => 'Dữ liệu quảng cáo (JSON):\n' + JSON.stringify(
 function adFinish(req, input, r, body) {
   const client = input.khach, name = input.ten_ads || ('Ads ' + input.ad_id);
   const head = `**Khách:** ${client}\n**Ads:** ${name}\n**Link:** ${req.url || ''}\n**Đánh giá:** ${r.danh_gia} - ${r.tom_tat}\n`;
-  const doc = writeDoc(`Phân tích ads - ${client} - ${name} - ${today()}`, head + '\n' + body, folderFrom(req.folder, 'Phân tích ads'));
+  const folders = clientFolders(req, client, '05_Bao-cao');
+  const doc = writeDoc(`Phân tích ads - ${client} - ${name} - ${today()}`, head + '\n' + body, folders.target);
   logRow('Phân tích ads',
     ['Thời gian', 'Khách', 'Tên ads', 'ID ads', 'Đánh giá', 'Chi tiêu', 'Hiển thị', 'CTR', 'CPM', 'Kết quả', 'Chi phí/kết quả', 'Tóm tắt', 'Đề xuất', 'File phân tích', 'Link ads'],
     [new Date(), client, name, input.ad_id, r.danh_gia, r.chi_tieu, r.hien_thi, r.ctr, r.cpm, r.ket_qua, r.chi_phi_moi_ket_qua, r.tom_tat, r.de_xuat.join('\n'), doc.url, req.url || '']);
-  return { doc, sheet: sheetUrl(), name };
+  return { doc, sheet: sheetUrl(), name, folders: folders.links };
 }
 
 function analyzeAd(req) {
   const { input, metaNote } = adInput(req);
   const r = fillAd(ai(AD_SYSTEM, adPrompt(input), AD_SCHEMA));
   const f = adFinish(req, input, r, r.bao_cao_markdown);
-  return { ok: true, result: r, doc: f.doc, sheet: f.sheet, metaNote, name: f.name };
+  return { ok: true, result: r, doc: f.doc, sheet: f.sheet, metaNote, name: f.name, folders: f.folders };
 }
 
 // Bổ sung trường còn thiếu nếu AI trả về không đủ
@@ -347,9 +349,10 @@ function consultSave(req) {
   const appendix = '\n\n# Phụ lục nội bộ (không gửi khách)\n## Câu hỏi cần hỏi lại khách và giả định\n' + (i.tiep_nhan || '')
     + '\n\n## Chiến lược chi tiết\n' + (i.chien_luoc || '') + '\n\n## Toàn bộ mẫu nội dung\n' + (i.noi_dung || '') + '\n\n## Checklist tracking\n' + (i.tracking || '');
   const title = `Tư vấn - ${client} - ${today()}`;
-  const doc = writeDoc(title, text + appendix.replace(/^### /gm, '## '), folderFrom(req.folder, 'Tư vấn'));
+  const folders = clientFolders(req, client, '02_Tu-van');
+  const doc = writeDoc(title, text + appendix.replace(/^### /gm, '## '), folders.target);
   logRow('Tư vấn', ['Thời gian', 'Khách', 'Brief (rút gọn)', 'File tư vấn'], [new Date(), client, String(i.brief).slice(0, 300), doc.url]);
-  return { ok: true, provider: used, text, doc, sheet: sheetUrl() };
+  return { ok: true, provider: used, text, doc, sheet: sheetUrl(), folders: folders.links };
 }
 
 // Bước đầu luồng ads: lấy số liệu (Meta hoặc dán tay) để các agent dùng chung
@@ -365,17 +368,43 @@ function adSave(req) {
     + (req.noi_dung ? '\n\n## Mẫu nội dung mới (agent Nội dung)\n' + String(req.noi_dung).replace(/^##\s+/gm, '### ') : '')
     + '\n\n## Kiểm duyệt\n' + (k.dat ? '- Báo cáo đạt, không phát hiện vấn đề.' : (k.van_de || []).map(v => '- ' + v).join('\n') || '- Chưa kiểm duyệt.');
   const f = adFinish(req, input, r, body);
-  return { ok: true, doc: f.doc, sheet: f.sheet, name: f.name };
+  return { ok: true, doc: f.doc, sheet: f.sheet, name: f.name, folders: f.folders };
 }
 
 /* ===== Google Docs, Drive, Sheets ===== */
 function today() { return Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'dd-MM-yyyy HH:mm'); }
 
-// Link thư mục Drive của khách → thư mục; không có thì dùng "Khanh's Work Space/<tên mặc định>"
-function folderFrom(link, fallbackName) {
+// Thư mục con của mỗi khách, giống trên website
+const CLIENT_SUBS = ['00_Thong-tin', '01_Brief', '02_Tu-van', '03_Ke-hoach-setup', '04_So-ads-Meta', '05_Bao-cao', '06_Nhat-ky-toi-uu'];
+
+// Link thư mục Drive → thư mục (null nếu không mở được)
+function folderFrom(link) {
   const m = String(link || '').match(/folders\/([\w-]+)/) || String(link || '').match(/[?&]id=([\w-]+)/);
-  if (m) { try { return DriveApp.getFolderById(m[1]); } catch (err) { /* không mở được, dùng thư mục mặc định */ } }
-  return childFolder(childFolder(DriveApp.getRootFolder(), "Khanh's Work Space"), fallbackName);
+  if (m) { try { return DriveApp.getFolderById(m[1]); } catch (err) { /* không mở được */ } }
+  return null;
+}
+
+// Chọn thư mục lưu file của khách:
+//  1. req.folder: link thư mục con đã có (VD 02_Tu-van) → lưu vào đó
+//  2. req.clientFolder: link thư mục khách → lưu vào thư mục con <sub> bên trong (tự tạo nếu thiếu)
+//  3. chưa có link → tự tạo "Khanh's Work Space/Job chạy ads/<tên khách>" và 7 thư mục con
+// Trả về thư mục đích và link các thư mục để website lưu lại vào hồ sơ khách.
+function clientFolders(req, client, sub) {
+  let clientDir = folderFrom(req.clientFolder);
+  const direct = folderFrom(req.folder);
+  if (!clientDir && !direct) {
+    const name = String(client || 'Khách mới').replace(/[\/\\]/g, '-').trim() || 'Khách mới';
+    clientDir = childFolder(childFolder(childFolder(DriveApp.getRootFolder(), "Khanh's Work Space"), 'Job chạy ads'), name);
+  }
+  const links = {};
+  if (clientDir) {
+    links.client = clientDir.getUrl();
+    links.subs = {};
+    CLIENT_SUBS.forEach(n => { links.subs[n] = childFolder(clientDir, n).getUrl(); });
+  }
+  const target = direct || childFolder(clientDir, sub);
+  links.target = target.getUrl(); links.sub = sub;
+  return { target, links };
 }
 function childFolder(parent, name) {
   const it = parent.getFoldersByName(name);
