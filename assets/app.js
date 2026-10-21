@@ -444,7 +444,11 @@ function render(v, focus) {
   if (v.c != null && !CLIENTS[v.c]) v = { m: 'ads', c: null };
   cur = v;
   const home = !v.m, m = MODULES.find(x => x.id === v.m);
+  const wasHome = !$('homeView').hidden, viewKey = (v.m || 'home') + ':' + (v.c == null ? '' : v.c);
   $('homeView').hidden = !home; $('modView').hidden = home;
+  // Hiệu ứng chỉ khi đổi trang, không chạy lại khi vẽ lại cùng trang sau khi lưu dữ liệu
+  if (viewKey !== lastView) enterFx(home ? $('homeView') : $('modView'), home ? 'back' : (wasHome ? 'in' : 'swap'));
+  lastView = viewKey;
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.go === (v.m || 'home'))));
   const route = home ? '' : m.slug + (v.c != null ? '/' + slugify(CLIENTS[v.c].n) : '');
   $('url').textContent = BASE + '/' + (route ? '#/' + route : '');
@@ -465,6 +469,34 @@ function render(v, focus) {
   $('nBack').disabled = hi <= 0; $('nFwd').disabled = hi >= hist.length - 1;
   if (focus !== false) { window.scrollTo(0, 0); (home ? $('tabbar').querySelector('[aria-selected="true"]') : $('modTitle')).focus({ preventScroll: true }); }
 }
+/* ===== Hiệu ứng 3D: sticker trồi lên rồi mở trang, trang lật vào, thẻ nghiêng theo chuột ===== */
+const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let popping = false, lastView = '';
+function popGo(st) {
+  const v = { m: st.dataset.id, c: null };
+  if (calm() || st.classList.contains('locked')) return go(v);
+  if (popping) return;
+  popping = true;
+  const map = $('map'); map.classList.add('popping'); st.classList.add('pop');
+  setTimeout(() => { popping = false; map.classList.remove('popping'); st.classList.remove('pop'); go(v); }, 560);
+}
+// Chạy lại hiệu ứng vào trang mỗi lần đổi trang
+function enterFx(el, kind) {
+  if (calm() || !el) return;
+  el.classList.remove('fx-in', 'fx-back', 'fx-swap'); void el.offsetWidth; el.classList.add('fx-' + kind);
+}
+// Nghiêng theo chuột: bản đồ, thẻ thư mục khách, nút menu nhanh, khung việc
+const TILT = '.mapbox, .fd, .qb, .hometodo';
+function tilt(e) {
+  if (calm() || e.pointerType === 'touch') return;
+  const el = e.target.closest && e.target.closest(TILT); if (!el) return;
+  const b = el.getBoundingClientRect(), x = (e.clientX - b.left) / b.width - .5, y = (e.clientY - b.top) / b.height - .5;
+  const k = el.classList.contains('mapbox') ? 5 : 10;
+  el.style.setProperty('--ry', (x * k).toFixed(2) + 'deg'); el.style.setProperty('--rx', (-y * k).toFixed(2) + 'deg');
+}
+document.addEventListener('pointermove', tilt);
+document.addEventListener('pointerout', e => { const el = e.target.closest && e.target.closest(TILT); if (el && !el.contains(e.relatedTarget)) { el.style.removeProperty('--rx'); el.style.removeProperty('--ry'); } });
+
 function go(v) {
   if (v.m) { const m = MODULES.find(x => x.id === v.m); if (m && m.locked) { toast('Mục này chưa mở.'); return; } }
   hist.splice(hi + 1); hist.push(v); hi = hist.length - 1; render(v);
@@ -871,10 +903,10 @@ async function analyzeAd(ci, ai) {
   } finally { wait(document.querySelector(`[data-analyze="${ci}:${ai}"]`), false); }
 }
 
-document.getElementById('map').addEventListener('click', e => { const s = e.target.closest('[data-id]'); if (s) go({ m: s.dataset.id, c: null }); });
+document.getElementById('map').addEventListener('click', e => { const s = e.target.closest('[data-id]'); if (s) popGo(s); });
 document.getElementById('map').addEventListener('keydown', e => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
-  const s = e.target.closest('.st'); if (s) { e.preventDefault(); go({ m: s.dataset.id, c: null }); }
+  const s = e.target.closest('.st'); if (s) { e.preventDefault(); popGo(s); }
 });
 document.addEventListener('click', e => {
   const g = e.target.closest('[data-go]'); if (g) { go(g.dataset.go === 'home' ? { m: null, c: null } : { m: g.dataset.go, c: null }); }
