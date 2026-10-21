@@ -8,6 +8,8 @@ config.js           điền Google Client ID ở đây
 assets/style.css    giao diện
 assets/app.js       dữ liệu + điều hướng (link dạng /#/ads/shop-mau-e)
 assets/drive.js     đăng nhập Google, tạo thư mục, đếm file
+assets/ai.js        gọi backend AI (Claude)
+backend/Code.gs     backend Google Apps Script: Claude + Meta Ads + Google Docs/Sheets
 assets/img/         ảnh sticker
 ```
 
@@ -61,6 +63,13 @@ Ghi lại địa chỉ website, ví dụ `https://khanh-workspace.netlify.app`.
 - Dữ liệu lưu trong trình duyệt. Khi đã nối Google Drive (Client ID), dữ liệu tự lưu thêm vào file
   `khanh-workspace-data.json` trong thư mục `Khanh's Work Space` để mở trên máy khác vẫn thấy.
 
-## 5. Sửa dữ liệu
+## 5. AI agent: phân tích brief và ads với Claude
 
-Danh sách khách, ads, trường... nằm đầu file `assets/app.js` (`CLIENTS`, `ADS`, `SCHOOLS`, `MODULES`). Hiện vẫn là dữ liệu ví dụ.
+- **Brief → tư vấn:** Job chạy ads → khung **Phân tích brief với Claude**.
+- **Ads Meta:** trong hồ sơ khách → **+ Thêm ads** (dán link Ads Manager) → bấm tên để mở ads, bấm **Phân tích** để
+  Claude tạo file phân tích (Google Docs) và cập nhật Google Sheet.
+- Cài đặt (khoá Claude API, Apps Script, token Meta): xem [`backend/HUONG-DAN.md`](backend/HUONG-DAN.md).
+
+## 6. Sửa dữ liệu
+
+Danh sách khách, ads, trường... nằm đầu file `assets/app.js` (`CLIENTS`, `SCHOOLS`, `MODULES`). Hiện vẫn là dữ liệu ví dụ.

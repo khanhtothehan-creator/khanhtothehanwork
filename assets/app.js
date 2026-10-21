@@ -31,12 +31,6 @@ let dataTime = 0;
 const setClients = d => { CLIENTS.splice(0, CLIENTS.length, ...d.clients); dataTime = d.t || 0; };
 try { const d = JSON.parse(localStorage.getItem(DATA_KEY)); if (d && Array.isArray(d.clients)) setClients(d); } catch (e) { /* dùng danh sách mặc định */ }
 
-const ADS = [
-  { name: 'ShopE_Mess_Broad_Video01_2110', goal: 'Tin nhắn', bud: 300000, run: true },
-  { name: 'ShopE_Mess_Lookalike_Anh02_2110', goal: 'Tin nhắn', bud: 200000, run: true },
-  { name: 'StudioD_Conv_Broad_Video01_2110', goal: 'Chuyển đổi', bud: 250000, run: false },
-  { name: 'StudioD_Conv_Retarget_Anh01_2110', goal: 'Chuyển đổi', bud: 150000, run: false }
-];
 const AGENTS = [
   ['Tiếp nhận', 'Đọc brief, hỏi lại khách nếu thiếu thông tin.'],
   ['Chiến lược', 'Đề xuất kênh, ngân sách, phễu.'],
@@ -225,11 +219,8 @@ const VIEWS = {
     const t0 = new Date(); t0.setHours(0, 0, 0, 0);
     const left = c => { const d = Math.round((new Date(c.to) - t0) / 864e5); return d < 0 ? 'đã kết thúc' : `còn ${d} ngày`; };
     const calRows = CLIENTS.map(c => `<tr><td><b>${esc(c.n)}</b></td><td>${esc(c.goal || '')}</td><td class="num">${fmt(c.bud)}</td><td>${dm(c.from)} - ${dm(c.to)} <span class="hint-i">(${c.s < 3 ? 'chưa bắt đầu' : c.to ? left(c) : 'chưa có ngày'})</span></td></tr>`).join('');
-    const sumOpts = ['Gemini', 'Claude'].map(m => `<option${m === (SEL.sumag || 'Gemini') ? ' selected' : ''}>${m}</option>`).join('');
-    const rows = ADS.map((a, i) => `<tr>
-      <td><input type="checkbox" id="ad${i}" data-ad="${i}" ${a.run ? 'checked' : ''} aria-label="Đã chạy: ${a.name}"></td>
-      <td class="mono">${a.name}</td><td>${a.goal}</td><td class="num">${fmt(a.bud)}</td>
-      <td><span class="pill ${a.run ? 'on' : ''}" id="pill${i}">${a.run ? 'Đang chạy' : 'Chờ duyệt'}</span></td></tr>`).join('');
+    const clOpts = `<option value="">Khách mới (chưa có thư mục)</option>` + CLIENTS.map((c, i) => `<option value="${i}"${SEL.consultCl === String(i) ? ' selected' : ''}>${esc(c.n)}</option>`).join('');
+    const allAds = CLIENTS.flatMap((c, ci) => (c.ads || []).map((a, ai) => adRow(ci, ai, true))).join('');
     return `
     <div class="block"><h3>Khách hàng</h3><p class="hint">Mỗi khách một thư mục riêng. Bấm vào thư mục để mở hồ sơ của khách đó.</p>
       <div class="seg" role="group" aria-label="Chế độ xem"><button type="button" data-tab="all" aria-pressed="true">Tất cả</button><button type="button" data-tab="cal" aria-pressed="false">Check lịch</button></div>
@@ -251,15 +242,17 @@ const VIEWS = {
         <div class="row"><button class="btn" type="submit">Tạo thư mục</button><button class="crumb" type="button" id="clCancel">Huỷ</button></div>
       </form>
       <div id="tab-cal" class="tablewrap" hidden><table><thead><tr><th>Tên</th><th>Mục tiêu</th><th class="num">Ngân sách</th><th>Thời gian thực hiện</th></tr></thead><tbody>${calRows}</tbody></table></div></div>
-    <div class="block"><h3>Khách mới</h3><p class="hint">Nhập brief và yêu cầu, chọn agent, rồi nhận bản tóm tắt và bản tư vấn kèm bảng giá.</p>
+    <div class="block"><h3>Phân tích brief với Claude<span class="tag">AI agent</span></h3><p class="hint">Dán brief của khách, Claude phân tích và viết bản tư vấn kèm báo giá. File Google Docs được lưu vào thư mục 02_Tu-van của khách (hoặc thư mục Drive của khách) và ghi vào Google Sheet.</p>
       <div class="intake">
+        <label for="consultCl">Khách</label>
+        <select id="consultCl" data-mk="consultCl">${clOpts}</select>
         <label for="brief">Brief + yêu cầu của khách</label>
-        <textarea id="brief" rows="5" placeholder="Dán brief của khách vào đây, mỗi ý một dòng..."></textarea>
-        <div class="row"><label for="sumag">Agent thực hiện</label><select id="sumag" data-mk="sumag">${sumOpts}</select><button type="button" class="btn" id="sum">Tóm tắt yêu cầu</button></div>
+        <textarea id="brief" rows="6" placeholder="Dán brief của khách vào đây: sản phẩm, mục tiêu, ngân sách, thời gian, khu vực, khách hàng mục tiêu...">${esc(SEL.brief || '')}</textarea>
+        <div class="row"><button type="button" class="btn" id="sum">Gửi Claude phân tích</button><button type="button" class="crumb" id="aiSet">Cài đặt AI</button></div>
         <div id="sumOut" hidden></div>
       </div></div>
-    <div class="block"><h3>Sổ ads Meta</h3><p class="hint">Chốt khách xong là tạo sổ. Ads nào lên là tick vào ô "Chạy".</p>
-      <div class="tablewrap"><table><thead><tr><th>Chạy</th><th>Tên ads (Khách_Mục tiêu_Tệp_Content_Ngày)</th><th>Mục tiêu</th><th class="num">Ngân sách/ngày</th><th>Trạng thái</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="block"><h3>Sổ ads Meta</h3><p class="hint">Tất cả ads của các khách. Bấm tên ads để mở trên Meta, bấm <b>Phân tích</b> để Claude tạo file phân tích và cập nhật Google Sheet. Thêm ads trong hồ sơ từng khách.</p>
+      <div class="adlist">${allAds || '<p class="hint">Chưa có ads nào. Mở hồ sơ một khách và bấm "+ Thêm ads".</p>'}</div></div>
     <div class="block"><h3>Tính phí quản lý</h3><p class="hint">Phí của bạn là 10-20% ngân sách ads của khách.</p>
       <div class="calc">
         <label for="bud">Ngân sách ads của khách (đ/tháng)</label>
@@ -343,6 +336,40 @@ const FOLDERS = [
   ['05_Bao-cao', 'Báo cáo tuần kèm nhận xét', 'Agent Báo cáo', 'Bạn, khách (bản đã duyệt)'],
   ['06_Nhat-ky-toi-uu', 'Đổi gì, ngày nào, kết quả ra sao', 'Bạn, agent Báo cáo', 'Agent Báo cáo']
 ];
+/* ===== Ads Meta: một dòng ads (dùng ở Sổ ads và hồ sơ khách) ===== */
+const VERDICT = { 'Tốt': 'on', 'Ổn': 'on', 'Cần tối ưu': '', 'Kém': 'bad', 'Chưa đủ dữ liệu': '' };
+function adRow(ci, ai, showClient) {
+  const c = CLIENTS[ci], a = c.ads[ai], L = a.last, id = ci + ':' + ai;
+  return `<div class="adrow">
+    <div class="adh">${showClient ? `<span class="pill">${esc(c.n)}</span>` : ''}
+      <a class="adname" href="${link(a.url)}" target="_blank" rel="noopener">${esc(a.name || 'Ads ' + (a.url.match(/\d{6,}/) || [''])[0])} ↗</a>
+      <button type="button" class="btn sm" data-analyze="${id}">Phân tích</button>
+      ${showClient ? '' : `<button type="button" class="crumb sm danger" data-addel="${ai}" aria-label="Xoá ads">Xoá</button>`}</div>
+    ${L ? `<div class="adres"><span class="pill ${VERDICT[L.danh_gia] || ''}">${esc(L.danh_gia)}</span> <span>${esc(L.tom_tat)}</span>
+      <span class="hint-i">${esc(L.t)} · <a href="${link(L.doc)}" target="_blank" rel="noopener">File phân tích ↗</a>${L.sheet ? ` · <a href="${link(L.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a>` : ''}</span></div>` : ''}
+    ${showClient ? '' : `<details class="admore"><summary>Số liệu dán tay và ghi chú (khi chưa nối Meta)</summary>
+      <textarea rows="3" data-admet="${ai}" placeholder="Dán số liệu từ Ads Manager: chi tiêu, hiển thị, CTR, CPM, kết quả, chi phí/kết quả...">${esc(a.metrics || '')}</textarea>
+      <textarea rows="2" data-adnote="${ai}" placeholder="Ghi chú cho Claude, VD: khách muốn giảm chi phí tin nhắn">${esc(a.note || '')}</textarea></details>`}
+    <div class="adout" id="adout-${ci}-${ai}" hidden></div></div>`;
+}
+
+// Markdown đơn giản từ Claude → HTML (đã escape)
+function md(t) {
+  const inline = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  let h = '', list = '';
+  const close = () => { if (list) { h += `</${list}>`; list = ''; } };
+  String(t).split('\n').forEach(line => {
+    const l = line.trim(); let m;
+    if (!l) { close(); return; }
+    if ((m = l.match(/^#{1,4}\s+(.*)/))) { close(); h += `<h4>${inline(m[1])}</h4>`; }
+    else if ((m = l.match(/^[-*•]\s+(.*)/))) { if (list !== 'ul') { close(); h += '<ul>'; list = 'ul'; } h += `<li>${inline(m[1])}</li>`; }
+    else if ((m = l.match(/^\d+[.)]\s+(.*)/))) { if (list !== 'ol') { close(); h += '<ol>'; list = 'ol'; } h += `<li>${inline(m[1])}</li>`; }
+    else { close(); h += `<p>${inline(l)}</p>`; }
+  });
+  close();
+  return h;
+}
+
 VIEWS.client = function (i) {
   const c = CLIENTS[i], s = c.s;
   const lk = f => link(c.links && c.links[f]);
@@ -362,6 +389,15 @@ VIEWS.client = function (i) {
       <div class="row"><input type="url" id="clDrive" value="${esc(link(c.drive))}" placeholder="https://drive.google.com/drive/folders/..." aria-label="Link thư mục Drive của ${n}"><button class="btn" type="button" id="clDriveSave">${link(c.drive) ? 'Lưu link mới' : 'Lưu link'}</button></div>
       <p id="drvStat" class="hint">${driveStatus(c)}</p>
       ${Drive.configured() ? `<div class="drvact"><button class="btn" type="button" id="drvSync" data-sync="${i}">${Drive.connected() ? 'Đồng bộ thư mục Drive' : 'Kết nối và tạo thư mục trên Drive'}</button></div>` : ''}</div>
+    <div class="block"><h3>Ads Meta của ${n}</h3><p class="hint">Dán link ads từ Ads Manager. Bấm tên ads để mở ads đó, bấm <b>Phân tích</b> để Claude tự tạo file phân tích (lưu vào 05_Bao-cao) và cập nhật Google Sheet.</p>
+      <div class="adlist">${(c.ads || []).map((a, ai) => adRow(i, ai, false)).join('') || '<p class="hint">Chưa có ads nào.</p>'}</div>
+      <form id="adForm" class="clform">
+        <h4>+ Thêm ads</h4>
+        <div class="two"><label>Tên ads<input type="text" name="name" maxlength="120" placeholder="VD: ShopA_Mess_Broad_Video01"></label>
+        <label>Link ads (Ads Manager)<input type="url" name="url" required placeholder="https://adsmanager.facebook.com/...selected_ad_ids=..."></label></div>
+        <div class="row"><button class="btn" type="submit">Thêm ads</button></div>
+      </form></div>
+    ${(c.docs || []).length ? `<div class="block"><h3>Tài liệu Claude đã tạo</h3><ul class="docs">${c.docs.slice(0, 20).map(d => `<li><span class="hint-i">${esc(d.t)}</span> <a href="${link(d.url)}" target="_blank" rel="noopener">${esc(d.title)} ↗</a></li>`).join('')}</ul></div>` : ''}
     <div class="iso"><b>Thông tin khách</b>
       <div class="two"><label>Giai đoạn<select id="clStage">${stageOpts}</select></label><label>Ghi chú<input type="text" id="clNote" value="${esc(c.note || '')}" maxlength="120"></label></div>
       <p class="hint">Agent làm việc cho ${n} chỉ đọc và ghi trong 7 thư mục dưới đây. Dữ liệu của khách khác không lẫn vào.</p>
@@ -440,14 +476,52 @@ function setTab(t) {
   $('tab-all').hidden = t !== 'all'; $('tab-cal').hidden = t !== 'cal';
   document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
 }
-function summarize() {
-  const t = $('brief').value.trim();
-  if (!t) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
-  const lines = t.split(/\n+/).map(s => s.trim()).filter(Boolean).slice(0, 6), ag = $('sumag').value;
-  $('sumOut').hidden = false;
-  $('sumOut').innerHTML = `<div class="sum"><span class="tag" style="margin-left:0;justify-self:start">mô phỏng, chưa nối AI</span><h4>Tóm tắt yêu cầu</h4>
-    <ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
-    <p class="hint" style="margin:0">Khi nối ${ag}, đây là bản mô tả do agent viết. Agent sẽ tổng hợp thành bản Google Docs (tư vấn và bảng giá) lưu vào thư mục 02_Tu-van của khách. Bạn sửa, duyệt rồi mới gửi.</p></div>`;
+const wait = (btn, on, label) => { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label; } else if (btn.dataset.l) btn.textContent = btn.dataset.l; };
+const folderOf = (c, sub) => c ? link(c.links && c.links[sub]) || link(c.drive) : '';
+
+async function summarize() {
+  const brief = $('brief').value.trim(), ci = $('consultCl').value, c = ci === '' ? null : CLIENTS[+ci];
+  if (!brief) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
+  const btn = $('sum'), outEl = $('sumOut');
+  wait(btn, true, 'Claude đang phân tích... (khoảng 1 phút)');
+  try {
+    const d = await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', folder: folderOf(c, '02_Tu-van') });
+    if (c) { c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url }); saveData(); }
+    SEL.brief = '';
+    if (!$('sumOut')) return; // đã chuyển trang
+    outEl.hidden = false;
+    outEl.innerHTML = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
+      <div class="mdout">${md(d.text)}</div>
+      <p class="hint" style="margin:0">Đây là bản nháp của Claude. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.</p></div>`;
+    toast('Đã tạo file tư vấn.');
+  } catch (err) { toast(err.message); }
+  finally { wait(btn, false); }
+}
+
+async function analyzeAd(ci, ai) {
+  const c = CLIENTS[ci], a = c && c.ads && c.ads[ai]; if (!a) return;
+  const btn = document.querySelector(`[data-analyze="${ci}:${ai}"]`);
+  wait(btn, true, 'Đang phân tích...');
+  const box = $(`adout-${ci}-${ai}`); if (box) { box.hidden = false; box.innerHTML = '<p class="hint">Claude đang lấy số liệu và phân tích, khoảng 1 phút...</p>'; }
+  try {
+    const d = await AI.call('analyzeAd', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '', folder: folderOf(c, '05_Bao-cao') });
+    const r = d.result, t = new Date().toLocaleString('vi-VN');
+    if (!a.name && d.name) a.name = d.name;
+    a.last = { t, danh_gia: r.danh_gia, tom_tat: r.tom_tat, doc: d.doc.url, sheet: d.sheet };
+    c.docs = c.docs || []; c.docs.unshift({ t, title: d.doc.title, url: d.doc.url });
+    saveData(); render(cur, false);
+    const nb = $(`adout-${ci}-${ai}`);
+    if (nb) {
+      nb.hidden = false;
+      nb.innerHTML = `${d.metaNote ? `<p class="hint">${esc(d.metaNote)}</p>` : ''}<div class="kpis">${[['Chi tiêu', r.chi_tieu], ['Hiển thị', r.hien_thi], ['CTR', r.ctr], ['CPM', r.cpm], ['Kết quả', r.ket_qua], ['Chi phí/kết quả', r.chi_phi_moi_ket_qua]].map(k => `<div><span>${k[0]}</span><b>${esc(k[1])}</b></div>`).join('')}</div>
+        <h4>Nên làm ngay</h4><ul>${r.de_xuat.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <details><summary>Xem báo cáo đầy đủ</summary><div class="mdout">${md(r.bao_cao_markdown)}</div></details>`;
+    }
+    toast('Đã tạo file phân tích và cập nhật Google Sheet.');
+  } catch (err) {
+    toast(err.message);
+    const nb = $(`adout-${ci}-${ai}`); if (nb) nb.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
+  } finally { wait(document.querySelector(`[data-analyze="${ci}:${ai}"]`), false); }
 }
 
 document.getElementById('map').addEventListener('click', e => { const s = e.target.closest('[data-id]'); if (s) go({ m: s.dataset.id, c: null }); });
@@ -468,6 +542,10 @@ $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   if (e.target.closest('#sum')) summarize();
+  if (e.target.closest('#aiSet')) { if (AI.setup(true)) AI.call('ping', {}).then(d => toast('Đã kết nối backend.' + (d.meta ? '' : ' Chưa có META_TOKEN: dán số liệu tay khi phân tích.'))).catch(err => toast(err.message)); }
+  const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }
+  const ad = e.target.closest('[data-addel]');
+  if (ad && confirm('Xoá ads này khỏi danh sách? File phân tích đã tạo vẫn giữ trên Drive.')) { CLIENTS[cur.c].ads.splice(+ad.dataset.addel, 1); saveData(); render(cur, false); }
   const sy = e.target.closest('[data-sync]'); if (sy) syncClient(+sy.dataset.sync, true);
   if (e.target.closest('#newCl')) { const f = $('clForm'); f.hidden = false; f.n.focus(); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   if (e.target.closest('#clCancel')) { $('clForm').reset(); $('clForm').hidden = true; }
@@ -483,6 +561,13 @@ $('modBody').addEventListener('click', e => {
   }
 });
 $('modBody').addEventListener('submit', e => {
+  if (e.target.id === 'adForm') {
+    e.preventDefault();
+    const f = e.target, u = f.url.value.trim(), c = CLIENTS[cur.c];
+    if (!link(u)) { toast('Link ads phải bắt đầu bằng https://'); return; }
+    c.ads = c.ads || []; c.ads.push({ name: f.name.value.trim(), url: u });
+    saveData(); render(cur, false); toast('Đã thêm ads.'); return;
+  }
   if (e.target.id !== 'clForm') return;
   e.preventDefault();
   const f = e.target, name = f.n.value.trim(), drive = f.drive.value.trim();
@@ -491,7 +576,7 @@ $('modBody').addEventListener('submit', e => {
   CLIENTS.push({ n: name, s: +f.s.value, note: f.note.value.trim(), goal: f.goal.value, bud: +f.bud.value || 0, from: f.from.value, to: f.to.value, drive, links: {} });
   saveData(); go({ m: 'ads', c: CLIENTS.length - 1 }); toast('Đã tạo thư mục ' + name + '.');
 });
-$('modBody').addEventListener('input', e => { if (e.target.id === 'bud' || e.target.id === 'pct') calc(); });
+$('modBody').addEventListener('input', e => { if (e.target.id === 'bud' || e.target.id === 'pct') calc(); if (e.target.id === 'brief') SEL.brief = e.target.value; });
 $('modBody').addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.mk) { SEL[e.target.dataset.mk] = e.target.value; return; }
   if (e.target.dataset && e.target.dataset.flink) {
@@ -505,9 +590,11 @@ $('modBody').addEventListener('change', e => {
     if (e.target.id === 'clStage') c.s = +e.target.value; else c.note = e.target.value.trim();
     saveData(); render(cur, false); toast('Đã lưu.'); return;
   }
-  const i = e.target.dataset && e.target.dataset.ad; if (i === undefined) return;
-  const on = e.target.checked, pill = $('pill' + i); ADS[i].run = on;
-  pill.textContent = on ? 'Đang chạy' : 'Chờ duyệt'; pill.classList.toggle('on', on);
+  const d = e.target.dataset || {};
+  if (d.admet !== undefined || d.adnote !== undefined) {
+    const a = CLIENTS[cur.c].ads[+(d.admet !== undefined ? d.admet : d.adnote)];
+    a[d.admet !== undefined ? 'metrics' : 'note'] = e.target.value.trim(); saveData(); toast('Đã lưu.');
+  }
 });
 
 /* ===== Google Drive ===== */
