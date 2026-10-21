@@ -253,7 +253,9 @@ const VIEWS = {
         <p class="out">Phí: <span id="fee"></span></p>
       </div></div>
     <details class="aiset"><summary>⚙️ Cài đặt AI và model của từng agent</summary>
-      <div class="row"><button type="button" class="btn" id="aiSet">Nối backend AI (Apps Script)</button></div>
+      <p class="hint">Đang nối: <span class="mono" id="aiUrl">${esc(AI.short())}</span></p>
+      <div class="row"><button type="button" class="btn" id="aiSet">Nối backend AI (Apps Script)</button><button type="button" class="crumb" id="aiCheck">Kiểm tra backend</button></div>
+      <p class="hint" id="aiInfo"></p>
       ${agentsBlock('ag', AGENTS, 'Brief: Tiếp nhận → Chiến lược → Nội dung + Tracking → Tổng hợp. Kế hoạch: agent Kế hoạch. Báo cáo: Báo cáo + Kiểm duyệt. Chọn Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}</details>`;
   },
   zh() {
@@ -552,6 +554,17 @@ async function summarizeMulti(c, brief, outEl, extra) {
 }
 
 
+// Kiểm tra Web app đang chạy bản code nào
+function checkBackend() {
+  const info = $('aiInfo'), u = $('aiUrl'); if (u) u.textContent = AI.short();
+  if (info) info.textContent = 'Đang kiểm tra...';
+  AI.call('ping', {}).then(d => {
+    const msg = d.version ? `✓ Backend bản ${d.version}, AI: ${d.provider}, token Meta: ${d.meta ? 'đã có' : 'chưa có'}.`
+      : '✕ Link này đang chạy bản code CŨ. Trong Apps Script: Triển khai → Tùy chọn triển khai mới → Ứng dụng web → Triển khai, copy link mới rồi bấm "Nối backend AI" và dán link đó.';
+    if (info) info.textContent = msg; toast(msg);
+  }).catch(err => { if (info) info.textContent = err.message; toast(err.message); });
+}
+
 /* ===== Quy trình theo thư mục khách ===== */
 async function runStep(kind) {
   const ci = cur.c, c = CLIENTS[ci]; if (!c) return;
@@ -673,7 +686,8 @@ $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   const run = e.target.closest('[data-run]'); if (run) runStep(run.dataset.run);
-  if (e.target.closest('#aiSet')) { if (AI.setup(true)) AI.call('ping', {}).then(d => toast('Đã kết nối backend, đang dùng ' + d.provider + '.' + (d.meta ? '' : ' Chưa có META_TOKEN: dán số liệu tay khi phân tích.'))).catch(err => toast(err.message)); }
+  if (e.target.closest('#aiSet')) { if (AI.setup(true)) checkBackend(); }
+  if (e.target.closest('#aiCheck')) checkBackend();
   const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }
   const ad = e.target.closest('[data-addel]');
   if (ad && confirm('Xoá ads này khỏi danh sách? File phân tích đã tạo vẫn giữ trên Drive.')) { CLIENTS[cur.c].ads.splice(+ad.dataset.addel, 1); saveData(); render(cur, false); }

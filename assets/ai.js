@@ -36,10 +36,12 @@ const AI = (() => {
     const d = await r.json().catch(() => ({ ok: false, error: 'Backend trả về dữ liệu lạ. Kiểm tra quyền truy cập Web app là "Anyone".' }));
     if (!d.ok && d.error === 'unauthorized') { put(PK, ''); throw new Error('Sai mã truy cập. Bấm lại để nhập mã mới.'); }
     // Backend chưa có chức năng này: Apps Script đang chạy bản code cũ
-    if (!d.ok && /^Không rõ yêu cầu/.test(d.error || '')) throw new Error('Backend Apps Script đang là bản cũ. Dán code mới từ GitHub (backend/Code.gs), lưu, rồi Triển khai → Quản lý các lần triển khai → ✏️ → Phiên bản mới → Triển khai.');
+    if (!d.ok && /^Không rõ yêu cầu/.test(d.error || '')) throw new Error('Link Web app đang dùng chạy bản code cũ (' + short() + '). Tạo bản triển khai mới rồi nối lại link: xem "⚙️ Cài đặt AI" ở cuối trang Job chạy ads.');
     if (!d.ok) throw new Error(d.error || 'Có lỗi xảy ra.');
     return d;
   }
 
-  return { ready, setup, call };
+  // Link rút gọn để so với link trong Apps Script (VD: .../s/AKfy...x7Q/exec)
+  const short = () => { const m = url().match(/\/s\/([\w-]+)\//); return m ? '…/s/' + m[1].slice(0, 6) + '…' + m[1].slice(-6) + '/exec' : (url() || 'chưa nối'); };
+  return { ready, setup, call, url, short };
 })();

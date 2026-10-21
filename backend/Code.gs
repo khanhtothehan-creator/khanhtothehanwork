@@ -15,6 +15,8 @@
      CLAUDE_EFFORT   (tuỳ chọn)  low | medium | high, mặc định medium
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
+// Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
+const BACKEND_VERSION = '2026-10-21 quy-trinh-00-05';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
 
@@ -23,7 +25,7 @@ function doPost(e) {
   try { req = JSON.parse(e.postData.contents); } catch (err) { return out({ ok: false, error: 'Yêu cầu không hợp lệ.' }); }
   if (!prop('APP_PASSCODE') || req.key !== prop('APP_PASSCODE')) return out({ ok: false, error: 'unauthorized' });
   try {
-    if (req.action === 'ping') return out({ ok: true, meta: !!prop('META_TOKEN'), provider: provider() });
+    if (req.action === 'ping') return out({ ok: true, version: BACKEND_VERSION, meta: !!prop('META_TOKEN'), provider: provider() });
     if (req.action === 'consult') return out(consult(req));
     if (req.action === 'analyzeAd') return out(analyzeAd(req));
     // Đa tác tử: website gọi từng agent rồi gọi bước lưu
@@ -40,7 +42,7 @@ function doPost(e) {
     return out({ ok: false, error: String(err.message || err) });
   }
 }
-function doGet() { return out({ ok: true, app: "Khanh's Work Space backend" }); }
+function doGet() { return out({ ok: true, app: "Khanh's Work Space backend", version: BACKEND_VERSION }); }
 const out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 
 /* ===== AI: chọn Gemini hoặc Claude ===== */
@@ -627,6 +629,7 @@ function logRow(tab, header, row) {
 
 /* ===== Chạy thử trong trình soạn thảo (bấm ▶ Run) ===== */
 function kiemTra() {
+  Logger.log('Phiên bản code: ' + BACKEND_VERSION);
   Logger.log('AI đang dùng: ' + provider() + (provider() === 'gemini' ? ' (' + prop('GEMINI_MODEL', 'gemini-flash-latest') + ')' : ''));
   Logger.log('Trả lời: ' + ai('Trả lời ngắn gọn bằng tiếng Việt.', 'Chào bạn, hãy trả lời "Đã kết nối".'));
   Logger.log('Google Sheet: ' + sheetUrl());
