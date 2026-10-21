@@ -261,6 +261,8 @@ const VIEWS = {
       <p class="hint">Đang nối: <span class="mono" id="aiUrl">${esc(AI.short())}</span>${AI.url() ? ` · <a href="${esc(AI.url())}" target="_blank" rel="noopener">Mở link backend ↗</a> (thấy "version": "2026-10-21e xoa-file" là bản mới)` : ''}</p>
       <div class="row"><button type="button" class="btn" id="aiSet">Nối backend AI (Apps Script)</button><button type="button" class="crumb" id="aiCheck">Kiểm tra backend</button></div>
       <p class="hint" id="aiInfo"></p>
+      ${AI.url() ? `<div class="share"><b>Mở trên điện thoại hoặc máy khác</b><p class="hint">Gửi link này sang máy kia (Zalo, Messenger...), mở ra và nhập mã truy cập là có đủ dữ liệu. Link không chứa mã.</p>
+        <div class="row"><input type="text" readonly id="aiShareUrl" value="${esc(location.origin + location.pathname + '#ket-noi=' + encodeURIComponent(AI.url()))}" aria-label="Link kết nối"><button type="button" class="btn" id="aiShare">Copy link</button></div></div>` : ''}
       ${agentsBlock('ag', AGENTS, 'Brief: Tiếp nhận → Chiến lược → Nội dung + Tracking → Tổng hợp. Kế hoạch: agent Kế hoạch. Báo cáo: Báo cáo + Kiểm duyệt. Chọn Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}</details>`;
   },
   zh() {
@@ -578,7 +580,7 @@ function checkBackend() {
 
 /* ===== Việc cần làm (lưu trong trình duyệt) ===== */
 let TODOS = (() => { try { return JSON.parse(localStorage.getItem('kws.todo')) || []; } catch (e) { return []; } })();
-const saveTodos = () => { try { localStorage.setItem('kws.todo', JSON.stringify(TODOS)); } catch (e) { /* bỏ qua */ } };
+const saveTodos = () => { try { localStorage.setItem('kws.todo', JSON.stringify(TODOS)); } catch (e) { /* bỏ qua */ } touchData(); };
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dmy = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
 const dueTag = t => { if (!t.due) return ''; const today = ymd(new Date()); const cls = !t.done && t.due < today ? 'late' : t.due === today ? 'today' : '';
@@ -885,7 +887,8 @@ $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   const run = e.target.closest('[data-run]'); if (run) runStep(run.dataset.run);
-  if (e.target.closest('#aiSet')) { if (AI.setup(true)) checkBackend(); }
+  if (e.target.closest('#aiSet')) { if (AI.setup(true)) { checkBackend(); syncFromDrive(); } }
+  if (e.target.closest('#aiShare')) { const i = $('aiShareUrl'); i.select(); (navigator.clipboard ? navigator.clipboard.writeText(i.value) : Promise.reject()).then(() => toast('Đã copy link. Gửi sang điện thoại rồi mở ra.')).catch(() => { document.execCommand('copy'); toast('Đã copy link.'); }); }
   if (e.target.closest('#aiCheck')) checkBackend();
   const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }
   const ad = e.target.closest('[data-addel]');
@@ -955,13 +958,37 @@ function refreshDriveNote() {
     : Drive.connected() ? 'Đã kết nối Google Drive. Mỗi khách có một thư mục riêng ở đó.'
     : 'Google Drive chưa kết nối. Bấm nút Google Drive ở trên để đăng nhập.';
 }
-function saveData() {
+function saveData() { touchData(); refreshCounts(); }
+
+/* ===== Đồng bộ dữ liệu giữa các máy (qua backend, lưu file trên Google Drive) =====
+   Mỗi lần sửa: lưu trong trình duyệt + gửi lên Drive sau 1,2 giây. Mở web: lấy bản mới hơn. */
+let pushTimer = null;
+function touchData() {
   dataTime = Date.now();
-  const d = { t: dataTime, clients: CLIENTS };
-  try { localStorage.setItem(DATA_KEY, JSON.stringify(d)); } catch (e) { toast('Trình duyệt không cho lưu dữ liệu.'); }
-  if (Drive.connected()) Drive.saveJson(DATA_FILE, d).catch(err => toast('Chưa lưu lên Drive: ' + err.message));
-  refreshCounts();
+  try { localStorage.setItem(DATA_KEY, JSON.stringify({ t: dataTime, clients: CLIENTS })); } catch (e) { toast('Trình duyệt không cho lưu dữ liệu.'); }
+  if (AI.ready()) { clearTimeout(pushTimer); pushTimer = setTimeout(pushData, 1200); }
 }
+const snapshot = () => ({ t: dataTime, clients: CLIENTS, todos: TODOS });
+function applyRemote(d) {
+  setClients(d);
+  if (Array.isArray(d.todos)) TODOS = d.todos;
+  try { localStorage.setItem(DATA_KEY, JSON.stringify({ t: dataTime, clients: CLIENTS })); localStorage.setItem('kws.todo', JSON.stringify(TODOS)); } catch (e) { /* bỏ qua */ }
+  refreshCounts(); renderHomeTodo(); render(cur, false);
+}
+async function pushData() {
+  try { const r = await AI.call('dataSet', { data: snapshot() }); if (r.stale && r.data) applyRemote(r.data); }
+  catch (err) { if (!/bản code cũ/.test(err.message)) toast('Chưa lưu lên Drive: ' + err.message); }
+}
+async function syncFromDrive(quiet) {
+  if (!AI.ready()) return;
+  try {
+    const d = (await AI.call('dataGet', {})).data;
+    if (d && Array.isArray(d.clients) && (d.t || 0) > dataTime) { applyRemote(d); if (!quiet) toast('Đã tải dữ liệu mới nhất từ Google Drive.'); }
+    else if (!d || (d.t || 0) < dataTime) await pushData();
+  } catch (err) { /* backend cũ chưa có đồng bộ: dùng dữ liệu trong trình duyệt */ }
+}
+// Quay lại tab (VD vừa sửa trên điện thoại) thì lấy bản mới
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncFromDrive(true); });
 // Lấy bản mới hơn giữa trình duyệt và Drive
 async function pullData() {
   const d = await Drive.loadJson(DATA_FILE);
@@ -1019,8 +1046,14 @@ function fromHash() {
 window.addEventListener('hashchange', () => { const v = fromHash(); if (v.m !== cur.m || v.c !== cur.c) go(v); });
 
 renderMap();
+let joined = false;
+if (location.hash.startsWith('#ket-noi=')) {
+  joined = AI.setUrl(decodeURIComponent(location.hash.slice(9)));
+  history.replaceState(null, '', location.pathname);
+}
 hist.push(fromHash()); hi = 0; render(hist[0], false);
 refreshDriveNote();
 if (Drive.connected()) pullData().catch(() => {});
 refreshCounts(); renderHomeTodo(); paintMini();
-if (AI.ready()) calLoad(false);
+if (AI.ready()) { calLoad(false); syncFromDrive(); }
+else if (joined) setTimeout(() => { if (AI.setup(false)) { toast('Đã kết nối. Đang tải dữ liệu...'); syncFromDrive(); calLoad(true); } }, 400);

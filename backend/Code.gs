@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-21e xoa-file';
+const BACKEND_VERSION = '2026-10-21f dong-bo';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
 // Thư mục gốc trên Drive (đổi được bằng Script property ROOT_NAME)
@@ -40,6 +40,9 @@ function doPost(e) {
     if (req.action === 'metaPull') return out(metaPull(req));
     if (req.action === 'report') return out(report(req));
     if (req.action === 'upload') return out(upload(req));
+    // Đồng bộ dữ liệu web (khách, link, việc cần làm) giữa các máy
+    if (req.action === 'dataGet') return out(dataGet());
+    if (req.action === 'dataSet') return out(dataSet(req));
     if (req.action === 'trash') return out(trash(req));
     // Google Calendar
     if (req.action === 'calList') return out(calList(req));
@@ -532,6 +535,31 @@ function upload(req) {
   const blob = Utilities.newBlob(Utilities.base64Decode(String(req.data)), req.mime || 'application/octet-stream', name);
   const f = folders.target.createFile(blob);
   return { ok: true, doc: { url: f.getUrl(), title: f.getName() }, folders: folders.links };
+}
+
+/* ===== Dữ liệu của website lưu trên Drive để mở máy nào cũng giống nhau ===== */
+const DATA_NAME = 'han-workspace-data.json';
+function dataFile() {
+  const root = childFolder(DriveApp.getRootFolder(), ROOT_NAME()), it = root.getFilesByName(DATA_NAME);
+  return { root, file: it.hasNext() ? it.next() : null };
+}
+function dataGet() {
+  const f = dataFile().file;
+  return { ok: true, data: f ? JSON.parse(f.getBlob().getDataAsString() || 'null') : null };
+}
+// Bản mới hơn thắng: nếu trên Drive đã có bản mới hơn (máy khác vừa lưu) thì không ghi đè, trả bản đó về
+function dataSet(req) {
+  const d = req.data;
+  if (!d || !Array.isArray(d.clients)) throw new Error('Dữ liệu không hợp lệ.');
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const { root, file } = dataFile();
+    const cur = file ? JSON.parse(file.getBlob().getDataAsString() || 'null') : null;
+    if (cur && (cur.t || 0) > (d.t || 0)) return { ok: true, stale: true, data: cur };
+    const text = JSON.stringify(d);
+    if (file) file.setContent(text); else root.createFile(DATA_NAME, text, 'application/json');
+    return { ok: true, t: d.t };
+  } finally { lock.releaseLock(); }
 }
 
 // Chuyển file vào Thùng rác Drive (khôi phục được trong 30 ngày).

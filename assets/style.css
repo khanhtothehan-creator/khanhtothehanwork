@@ -485,3 +485,7 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .fdel:hover, .fdel:focus-visible { background: #F8D2D2; }
 .fdel:disabled { opacity: .4; cursor: wait; }
 .uplst.err { color: var(--pin); }
+.share { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; }
+.share b { font: 800 15px var(--font-display); color: var(--title); }
+.share .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.share input { flex: 1 1 220px; min-width: 0; background: var(--paper); border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 13px; }

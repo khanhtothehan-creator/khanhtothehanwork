@@ -43,5 +43,7 @@ const AI = (() => {
 
   // Link rút gọn để so với link trong Apps Script (VD: .../s/AKfy...x7Q/exec)
   const short = () => { const m = url().match(/\/s\/([\w-]+)\//); return m ? '…/s/' + m[1].slice(0, 6) + '…' + m[1].slice(-6) + '/exec' : (url() || 'chưa nối'); };
-  return { ready, setup, call, url, short };
+  // Lưu link backend nhận từ link kết nối (mở web trên máy khác)
+  const setUrl = u => { u = String(u || '').trim(); if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)) return false; put(UK, u); return true; };
+  return { ready, setup, call, url, short, setUrl };
 })();
