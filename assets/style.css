@@ -400,3 +400,76 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .aiset { background: var(--card); border: 2px dashed var(--line); border-radius: 16px; padding: 10px 14px; }
 .aiset > summary { cursor: pointer; font: 800 15px var(--font-display); color: var(--title); }
 .aiset .row { display: flex; gap: 8px; margin: 10px 0; }
+/* ===== Quy trình làm việc (thiết kế mới) ===== */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.step { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; position: relative; padding-bottom: 16px; background: none; border: 0; }
+.step::before { content: ""; position: absolute; left: 19px; top: 40px; bottom: 0; width: 3px; background: var(--line); border-radius: 3px; }
+.step:last-child::before { display: none; }
+.step + .step::before { content: ""; top: 40px; left: 19px; font-size: 0; color: transparent; }
+.step .stn { width: 40px; height: 40px; min-width: 0; border-radius: 999px; background: var(--card); border: 3px solid var(--line); color: var(--soft); font: 800 17px var(--font-display); display: grid; place-items: center; position: relative; z-index: 1; }
+.step.done .stn { background: var(--frame); border-color: var(--frame); color: #fff; }
+.step.done::before { background: var(--frame); }
+.stc { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.step.done .stc { border-color: var(--okbg); }
+.stc .sth { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stc .sth h4 { margin: 0; font: 800 18px var(--font-display); color: var(--title); }
+.stc .hint { margin: 0; }
+.stlab { margin: 2px 0 0; font-size: 12.5px; font-weight: 800; color: var(--soft); text-transform: uppercase; letter-spacing: .03em; }
+.stfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; border-top: 1px dashed var(--line); padding-top: 8px; font-size: 13px; font-weight: 600; color: var(--soft); }
+.stfoot a { color: var(--title); font-weight: 800; }
+.stfoot .flinkbox { flex-basis: 100%; }
+.stfoot .flink { margin-top: 6px; }
+@media (max-width: 560px) { .step { grid-template-columns: 30px minmax(0, 1fr); gap: 8px; } .step .stn { width: 30px; height: 30px; font-size: 14px; } .step::before { left: 14px; top: 30px; } }
+
+/* ===== Menu mới ===== */
+.qb.q-lich { background: #F2A7B5; } .qb.q-todo { background: #B9A6E8; }
+.mini { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; font-size: 14px; }
+.mini .mh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.mini .mh b { font: 800 15px var(--font-display); color: var(--title); }
+.mini ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-weight: 600; }
+.mini li span { color: var(--hand-orange); font-weight: 800; margin-right: 4px; }
+.mini p { margin: 6px 0 0; }
+
+/* ===== Việc cần làm ===== */
+.tdadd { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.tdadd input[type=text] { flex: 1 1 220px; min-width: 0; background: var(--paper); border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; font-weight: 600; }
+.tdlist { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.td { display: flex; align-items: center; gap: 8px; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 6px 10px; min-width: 0; }
+.td.done { opacity: .65; }
+.td.done .tdt, .td.done .tdtx { text-decoration: line-through; }
+.tdt { flex: 1 1 auto; min-width: 0; background: transparent; border: 0; border-bottom: 2px dashed transparent; padding: 4px 2px; font-weight: 700; }
+.tdt:hover, .tdt:focus { border-bottom-color: var(--line); outline: none; }
+.tdtx { flex: 1 1 auto; min-width: 0; font-weight: 700; }
+.tdd { flex: 0 0 auto; }
+.tdx { border: 0; background: none; color: var(--pin); font-weight: 800; cursor: pointer; padding: 4px 6px; }
+.due { font-size: 12.5px; font-weight: 800; color: var(--soft); white-space: nowrap; }
+.due.today { color: var(--hand-orange); } .due.late { color: var(--pin); }
+.hometodo { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.hometodo .htt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.hometodo .htt b { font: 800 18px var(--font-display); color: var(--title); }
+.hometodo .tdlist .td { background: var(--paper); }
+
+/* ===== Lịch ===== */
+.ctool { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ctool .row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ctool a.crumb { text-decoration: none; }
+.cweek { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 1039px) { .cweek { grid-template-columns: minmax(0, 1fr); } }
+.cday { background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 8px; display: grid; gap: 6px; align-content: start; min-width: 0; min-height: 120px; }
+@media (max-width: 1039px) { .cday { min-height: 0; } }
+.cday.today { border-color: var(--frame); box-shadow: 0 0 0 2px var(--okbg) inset; }
+.cdh { display: flex; justify-content: space-between; gap: 4px; font-size: 13px; }
+.cdh b { font-family: var(--font-display); color: var(--title); }
+.ev { text-align: left; display: grid; gap: 1px; background: var(--okbg); border: 0; border-left: 4px solid var(--frame); border-radius: 8px; padding: 5px 7px; cursor: pointer; min-width: 0; font-size: 13px; }
+.ev.all { background: var(--pink); border-left-color: var(--pink-ink); }
+.ev span { font-size: 11.5px; font-weight: 800; color: var(--soft); }
+.ev b { font-weight: 800; overflow-wrap: anywhere; }
+.ev i { font-size: 11.5px; color: var(--soft); font-style: normal; }
+.ev:hover { filter: brightness(.97); }
+.evadd { border: 2px dashed var(--line); background: none; border-radius: 8px; padding: 4px; font-weight: 800; font-size: 12.5px; color: var(--soft); cursor: pointer; }
+.evadd:hover { border-color: var(--frame); color: var(--title); }
+.calform { margin-bottom: 12px; }
+.calform .chk { display: flex; align-items: center; gap: 6px; align-self: end; padding-bottom: 8px; }
+.calform textarea, .calform input[type=time] { background: var(--paper); border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; font: 600 14px var(--font-body); }
+.calform .dayf { display: none; } .calform.allday .dayf { display: grid; } .calform.allday .timef { display: none; }
+.hint.err { color: var(--pin); }

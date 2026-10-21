@@ -1,4 +1,4 @@
-/* ===== Khanh's Work Space: backend chạy trên Google Apps Script =====
+/* ===== Han's Work Space: backend chạy trên Google Apps Script =====
    Website gửi yêu cầu tới đây, script này:
    - gọi AI (Gemini miễn phí, hoặc Claude) để phân tích brief và viết tư vấn,
    - lấy số liệu ads từ Meta Marketing API, gọi AI phân tích,
@@ -16,9 +16,11 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-21b quy-trinh-00-05';
+const BACKEND_VERSION = '2026-10-21c lich-han';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
+// Thư mục gốc trên Drive (đổi được bằng Script property ROOT_NAME)
+const ROOT_NAME = () => prop('ROOT_NAME', "Han's Work Space");
 
 function doPost(e) {
   let req;
@@ -37,12 +39,16 @@ function doPost(e) {
     if (req.action === 'plan') return out(plan(req));
     if (req.action === 'metaPull') return out(metaPull(req));
     if (req.action === 'report') return out(report(req));
+    // Google Calendar
+    if (req.action === 'calList') return out(calList(req));
+    if (req.action === 'calSave') return out(calSave(req));
+    if (req.action === 'calDelete') return out(calDelete(req));
     return out({ ok: false, error: 'Không rõ yêu cầu: ' + req.action });
   } catch (err) {
     return out({ ok: false, error: String(err.message || err) });
   }
 }
-function doGet() { return out({ ok: true, app: "Khanh's Work Space backend", version: BACKEND_VERSION }); }
+function doGet() { return out({ ok: true, app: "Han's Work Space backend", version: BACKEND_VERSION }); }
 const out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 
 /* ===== AI: chọn Gemini hoặc Claude ===== */
@@ -172,8 +178,8 @@ function claude(system, user, schema) {
 }
 
 /* ===== 1. Brief → tư vấn ===== */
-const CONSULT_SYSTEM = `Bạn là chuyên gia tư vấn quảng cáo Meta Ads (Facebook, Instagram) làm việc cùng Khanh, một freelancer chạy ads cho shop, spa, quán, studio nhỏ ở Việt Nam.
-Khanh dán brief của khách. Bạn viết bản phân tích và tư vấn bằng tiếng Việt để Khanh đọc, sửa, rồi gửi khách.
+const CONSULT_SYSTEM = `Bạn là chuyên gia tư vấn quảng cáo Meta Ads (Facebook, Instagram) làm việc cùng Han, một freelancer chạy ads cho shop, spa, quán, studio nhỏ ở Việt Nam.
+Han dán brief của khách. Bạn viết bản phân tích và tư vấn bằng tiếng Việt để Han đọc, sửa, rồi gửi khách.
 Định dạng: Markdown đơn giản, chỉ dùng tiêu đề (##), gạch đầu dòng (-), danh sách số và chữ đậm (**). Không dùng bảng, không dùng emoji.
 Các phần, theo thứ tự:
 ## Tóm tắt yêu cầu
@@ -199,8 +205,8 @@ function consult(req) {
 }
 
 /* ===== 2. Link ads → số liệu Meta → phân tích ===== */
-const AD_SYSTEM = `Bạn là chuyên gia phân tích hiệu quả quảng cáo Meta Ads, viết cho Khanh (freelancer chạy ads ở Việt Nam).
-Bạn nhận thông tin một mẫu quảng cáo: cấu hình, số liệu tổng và số liệu theo ngày (nếu có), và ghi chú của Khanh.
+const AD_SYSTEM = `Bạn là chuyên gia phân tích hiệu quả quảng cáo Meta Ads, viết cho Han (freelancer chạy ads ở Việt Nam).
+Bạn nhận thông tin một mẫu quảng cáo: cấu hình, số liệu tổng và số liệu theo ngày (nếu có), và ghi chú của Han.
 Đánh giá theo mục tiêu của chiến dịch. So sánh với mức tham khảo thường gặp ở thị trường Việt Nam và nói rõ đó là mức tham khảo.
 Chỉ dùng số có trong dữ liệu; thiếu số nào thì ghi "chưa có" và không bịa.
 bao_cao_markdown viết bằng tiếng Việt, chỉ dùng ## tiêu đề, gạch đầu dòng, chữ đậm, không dùng bảng, gồm các phần:
@@ -220,7 +226,7 @@ const AD_SCHEMA = {
   }
 };
 
-// Gom dữ liệu một mẫu ads: số liệu Meta (nếu có token) + số liệu Khanh dán tay
+// Gom dữ liệu một mẫu ads: số liệu Meta (nếu có token) + số liệu Han dán tay
 function adInput(req) {
   const client = String(req.client || 'Khách');
   const adId = adIdFrom(req.url || req.adId || '');
@@ -296,12 +302,12 @@ function metaAd(id) {
    Ads:   adData → Báo cáo → (Nội dung ads ∥ Kiểm duyệt) → adSave
    Mỗi agent một lần gọi, website hiển thị tiến độ từng bước. */
 const MD_RULE = 'Viết bằng tiếng Việt, Markdown đơn giản: chỉ dùng ## tiêu đề, gạch đầu dòng (-), danh sách số, chữ đậm (**). Không dùng bảng, không dùng emoji. Ngắn gọn, thực tế. Thiếu số liệu thì nêu giả định, không bịa.';
-const ROLE = 'Bạn là một agent trong nhóm trợ lý chạy quảng cáo Meta Ads (Facebook, Instagram) của Khanh, freelancer làm cho shop, spa, quán, studio nhỏ ở Việt Nam. ';
+const ROLE = 'Bạn là một agent trong nhóm trợ lý chạy quảng cáo Meta Ads (Facebook, Instagram) của Han, freelancer làm cho shop, spa, quán, studio nhỏ ở Việt Nam. ';
 const T = (label, v) => v ? `\n\n### ${label}\n${typeof v === 'string' ? v : JSON.stringify(v, null, 1)}` : '';
 
 const AGENT_DEFS = {
   tiep_nhan: {
-    system: ROLE + 'Vai trò: agent Tiếp nhận. Đọc brief, chuẩn hoá thông tin. Các phần: ## Tóm tắt brief (sản phẩm/dịch vụ, khách hàng mục tiêu, mục tiêu kinh doanh, ngân sách, thời gian, khu vực, kênh nhận khách), ## Thông tin còn thiếu (câu hỏi cụ thể để Khanh hỏi lại khách), ## Giả định tạm thời. ' + MD_RULE,
+    system: ROLE + 'Vai trò: agent Tiếp nhận. Đọc brief, chuẩn hoá thông tin. Các phần: ## Tóm tắt brief (sản phẩm/dịch vụ, khách hàng mục tiêu, mục tiêu kinh doanh, ngân sách, thời gian, khu vực, kênh nhận khách), ## Thông tin còn thiếu (câu hỏi cụ thể để Han hỏi lại khách), ## Giả định tạm thời. ' + MD_RULE,
     user: i => `Khách: ${i.client}${T('Brief của khách', i.brief)}`
   },
   chien_luoc: {
@@ -382,14 +388,14 @@ function adSave(req) {
 }
 
 /* ===== 03 Kế hoạch: đọc bản tư vấn đã sửa trong 02_Tu-van → kế hoạch setup chi tiết ===== */
-const PLAN_SYSTEM = ROLE + 'Vai trò: agent Kế hoạch. Khanh đã sửa và chốt bản tư vấn với khách. Từ bản tư vấn đó, lập KẾ HOẠCH SETUP CHI TIẾT để Khanh làm theo trong Ads Manager. Các phần: ## Mục tiêu và KPI đã chốt, ## Cấu trúc tài khoản (từng chiến dịch: tên theo quy tắc Khach_MucTieu_Tep_Content_NgayThang, mục tiêu Meta, ngân sách/ngày, lịch chạy; từng nhóm quảng cáo: tệp, độ tuổi, khu vực, sở thích hoặc tệp tuỳ chỉnh, vị trí hiển thị; từng mẫu ads), ## Nội dung và tài nguyên cần chuẩn bị (danh sách hình/video/caption, ai làm, hạn), ## Checklist cài đặt trước khi chạy (Pixel, sự kiện, Messenger/form, thanh toán, quyền tài khoản), ## Lịch triển khai theo ngày/tuần, ## Ngưỡng tối ưu (khi nào tắt, khi nào tăng ngân sách, theo chỉ số cụ thể). Bám sát nội dung đã chốt, không tự đổi ngân sách hay mục tiêu. ' + MD_RULE;
+const PLAN_SYSTEM = ROLE + 'Vai trò: agent Kế hoạch. Han đã sửa và chốt bản tư vấn với khách. Từ bản tư vấn đó, lập KẾ HOẠCH SETUP CHI TIẾT để Han làm theo trong Ads Manager. Các phần: ## Mục tiêu và KPI đã chốt, ## Cấu trúc tài khoản (từng chiến dịch: tên theo quy tắc Khach_MucTieu_Tep_Content_NgayThang, mục tiêu Meta, ngân sách/ngày, lịch chạy; từng nhóm quảng cáo: tệp, độ tuổi, khu vực, sở thích hoặc tệp tuỳ chỉnh, vị trí hiển thị; từng mẫu ads), ## Nội dung và tài nguyên cần chuẩn bị (danh sách hình/video/caption, ai làm, hạn), ## Checklist cài đặt trước khi chạy (Pixel, sự kiện, Messenger/form, thanh toán, quyền tài khoản), ## Lịch triển khai theo ngày/tuần, ## Ngưỡng tối ưu (khi nào tắt, khi nào tăng ngân sách, theo chỉ số cụ thể). Bám sát nội dung đã chốt, không tự đổi ngân sách hay mục tiêu. ' + MD_RULE;
 
 function plan(req) {
   const client = String(req.client || 'Khách');
   const src = latestDoc(req.sourceFolder, req.sourceDoc);
   if (!src) throw new Error('Chưa có bản tư vấn trong 02_Tu-van. Hãy chạy bước 01_Brief trước.');
   const used = pickProvider(req.provider);
-  const text = ai(PLAN_SYSTEM, `Khách: ${client}${T('Bản tư vấn đã chốt (' + src.title + ')', src.text)}${T('Ghi chú thêm của Khanh', req.note)}`, null, used);
+  const text = ai(PLAN_SYSTEM, `Khách: ${client}${T('Bản tư vấn đã chốt (' + src.title + ')', src.text)}${T('Ghi chú thêm của Han', req.note)}`, null, used);
   const folders = clientFolders(req, client, '03_Ke-hoach-setup');
   const doc = writeDoc(`Kế hoạch setup - ${client} - ${today()}`, `**Dựa trên:** ${src.title}\n\n` + text, folders.target);
   return { ok: true, provider: used, text, doc, source: { title: src.title, url: src.url }, folders: folders.links };
@@ -487,7 +493,7 @@ function appendTab(ss, tab, header, rows) {
 }
 
 /* ===== 05 Báo cáo: số liệu 04 + kế hoạch 03 → đánh giá và đề xuất chỉnh sửa ===== */
-const REPORT_SYSTEM = ROLE + 'Vai trò: agent Báo cáo tài khoản. Từ số liệu tài khoản quảng cáo và từng chiến dịch (và kế hoạch/KPI nếu có), viết báo cáo cho Khanh. Các phần: ## Tổng quan tài khoản (chi tiêu, kết quả chính, chi phí/kết quả, xu hướng nếu có), ## Đánh giá từng chiến dịch (mỗi chiến dịch: Tốt / Ổn / Cần tối ưu / Kém, kèm lý do bằng số liệu), ## So với kế hoạch và KPI (nếu có kế hoạch), ## Đề xuất chỉnh sửa (việc cụ thể theo thứ tự ưu tiên: tăng/giảm ngân sách bao nhiêu phần trăm, tắt, nhân bản, đổi nội dung, đổi tệp; nêu chỉ số căn cứ), ## Việc cần làm tuần tới, ## Tóm tắt gửi khách (3-5 câu, lời lẽ dễ hiểu). Chỉ dùng số có trong dữ liệu; so sánh với mức tham khảo thị trường Việt Nam thì ghi rõ là tham khảo. ' + MD_RULE;
+const REPORT_SYSTEM = ROLE + 'Vai trò: agent Báo cáo tài khoản. Từ số liệu tài khoản quảng cáo và từng chiến dịch (và kế hoạch/KPI nếu có), viết báo cáo cho Han. Các phần: ## Tổng quan tài khoản (chi tiêu, kết quả chính, chi phí/kết quả, xu hướng nếu có), ## Đánh giá từng chiến dịch (mỗi chiến dịch: Tốt / Ổn / Cần tối ưu / Kém, kèm lý do bằng số liệu), ## So với kế hoạch và KPI (nếu có kế hoạch), ## Đề xuất chỉnh sửa (việc cụ thể theo thứ tự ưu tiên: tăng/giảm ngân sách bao nhiêu phần trăm, tắt, nhân bản, đổi nội dung, đổi tệp; nêu chỉ số căn cứ), ## Việc cần làm tuần tới, ## Tóm tắt gửi khách (3-5 câu, lời lẽ dễ hiểu). Chỉ dùng số có trong dữ liệu; so sánh với mức tham khảo thị trường Việt Nam thì ghi rõ là tham khảo. ' + MD_RULE;
 
 function report(req) {
   const client = String(req.client || 'Khách');
@@ -496,7 +502,7 @@ function report(req) {
   const planDoc = latestDoc(req.planFolder, req.planDoc);
   const used = pickProvider(req.provider);
   const data = { so_lieu_meta: req.meta || null, so_lieu_dan_tay: paste || null };
-  let text = ai(REPORT_SYSTEM, `Khách: ${client}${T('Số liệu', data)}${planDoc ? T('Kế hoạch đã chốt (' + planDoc.title + ')', planDoc.text.slice(0, 15000)) : ''}${T('Ghi chú của Khanh', req.note)}`, null, used);
+  let text = ai(REPORT_SYSTEM, `Khách: ${client}${T('Số liệu', data)}${planDoc ? T('Kế hoạch đã chốt (' + planDoc.title + ')', planDoc.text.slice(0, 15000)) : ''}${T('Ghi chú của Han', req.note)}`, null, used);
   let check = null;
   if (req.review) {
     const k = AGENT_DEFS.kiem_duyet;
@@ -515,6 +521,48 @@ function report(req) {
   return { ok: true, provider: used, text, check, doc, sheet: sheetUrl(), folders: folders.links };
 }
 
+/* ===== Google Calendar (lịch chính của tài khoản chạy script) ===== */
+function cal() { return CalendarApp.getDefaultCalendar(); }
+function calEvent(e, tz) {
+  const o = { id: e.getId(), title: e.getTitle(), allDay: e.isAllDayEvent(), location: e.getLocation(), description: e.getDescription(), recurring: e.isRecurringEvent() };
+  if (o.allDay) {
+    o.date = Utilities.formatDate(e.getAllDayStartDate(), tz, 'yyyy-MM-dd');
+    o.endDate = Utilities.formatDate(new Date(e.getAllDayEndDate().getTime() - 864e5), tz, 'yyyy-MM-dd'); // ngày cuối (tính cả ngày đó)
+  } else { o.start = e.getStartTime().toISOString(); o.end = e.getEndTime().toISOString(); }
+  return o;
+}
+function calList(req) {
+  const c = cal(), tz = c.getTimeZone();
+  const from = new Date(req.from), to = new Date(req.to);
+  if (isNaN(from) || isNaN(to)) throw new Error('Khoảng thời gian không hợp lệ.');
+  return { ok: true, tz, events: c.getEvents(from, to).map(e => calEvent(e, tz)) };
+}
+function calFind(id) {
+  const e = cal().getEventById(String(id || ''));
+  if (!e) throw new Error('Không tìm thấy sự kiện (có thể đã bị xoá).');
+  if (e.isRecurringEvent()) throw new Error('Đây là sự kiện lặp lại. Hãy sửa trong Google Calendar.');
+  return e;
+}
+function calSave(req) {
+  const c = cal(), tz = c.getTimeZone(), title = String(req.title || '').trim() || '(Không có tiêu đề)';
+  const opts = { location: String(req.location || ''), description: String(req.description || '') };
+  const day = s => Utilities.parseDate(String(s), tz, 'yyyy-MM-dd');
+  let e;
+  if (req.allDay) {
+    if (!req.date) throw new Error('Chọn ngày.');
+    const endEx = req.endDate && req.endDate > req.date ? new Date(day(req.endDate).getTime() + 864e5) : null;
+    if (req.id) { e = calFind(req.id); endEx ? e.setAllDayDates(day(req.date), endEx) : e.setAllDayDate(day(req.date)); }
+    else e = endEx ? c.createAllDayEvent(title, day(req.date), endEx, opts) : c.createAllDayEvent(title, day(req.date), opts);
+  } else {
+    const start = new Date(req.start), end = new Date(req.end);
+    if (isNaN(start) || isNaN(end) || end <= start) throw new Error('Giờ kết thúc phải sau giờ bắt đầu.');
+    if (req.id) { e = calFind(req.id); e.setTime(start, end); } else e = c.createEvent(title, start, end, opts);
+  }
+  if (req.id) { e.setTitle(title); e.setLocation(opts.location); e.setDescription(opts.description); }
+  return { ok: true, event: calEvent(e, tz) };
+}
+function calDelete(req) { calFind(req.id).deleteEvent(); return { ok: true }; }
+
 /* ===== Google Docs, Drive, Sheets ===== */
 function today() { return Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'dd-MM-yyyy HH:mm'); }
 
@@ -531,14 +579,14 @@ function folderFrom(link) {
 // Chọn thư mục lưu file của khách:
 //  1. req.folder: link thư mục con đã có (VD 02_Tu-van) → lưu vào đó
 //  2. req.clientFolder: link thư mục khách → lưu vào thư mục con <sub> bên trong (tự tạo nếu thiếu)
-//  3. chưa có link → tự tạo "Khanh's Work Space/Job chạy ads/<tên khách>" và 7 thư mục con
+//  3. chưa có link → tự tạo "<ROOT_NAME>/Job chạy ads/<tên khách>" và 7 thư mục con
 // Trả về thư mục đích và link các thư mục để website lưu lại vào hồ sơ khách.
 function clientFolders(req, client, sub) {
   let clientDir = folderFrom(req.clientFolder);
   const direct = folderFrom(req.folder);
   if (!clientDir && !direct) {
     const name = String(client || 'Khách mới').replace(/[\/\\]/g, '-').trim() || 'Khách mới';
-    clientDir = childFolder(childFolder(childFolder(DriveApp.getRootFolder(), "Khanh's Work Space"), 'Job chạy ads'), name);
+    clientDir = childFolder(childFolder(childFolder(DriveApp.getRootFolder(), ROOT_NAME()), 'Job chạy ads'), name);
   }
   const links = {};
   if (clientDir) {
@@ -609,8 +657,8 @@ function boldify(text) {
 function sheet() {
   let id = prop('SHEET_ID');
   if (id) { try { return SpreadsheetApp.openById(id); } catch (err) { /* tạo lại */ } }
-  const ss = SpreadsheetApp.create("Khanh's Work Space - Phân tích ads");
-  DriveApp.getFileById(ss.getId()).moveTo(childFolder(DriveApp.getRootFolder(), "Khanh's Work Space"));
+  const ss = SpreadsheetApp.create(ROOT_NAME() + ' - Phân tích ads');
+  DriveApp.getFileById(ss.getId()).moveTo(childFolder(DriveApp.getRootFolder(), ROOT_NAME()));
   PROPS.setProperty('SHEET_ID', ss.getId());
   return ss;
 }
@@ -636,4 +684,5 @@ function kiemTra() {
   Logger.log('Trả lời: ' + ai('Trả lời ngắn gọn bằng tiếng Việt.', 'Chào bạn, hãy trả lời "Đã kết nối".'));
   Logger.log('Google Sheet: ' + sheetUrl());
   Logger.log('META_TOKEN: ' + (prop('META_TOKEN') ? 'đã có' : 'chưa có'));
+  Logger.log('Google Calendar: ' + cal().getName() + ' (' + cal().getTimeZone() + ')');
 }

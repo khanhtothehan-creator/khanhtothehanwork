@@ -1,4 +1,4 @@
-# Khanh's Work Space
+# Han's Work Space
 
 Website tĩnh (HTML/CSS/JS, không cần server), có nối Google Drive.
 
@@ -48,9 +48,9 @@ Ghi lại địa chỉ website, ví dụ `https://khanh-workspace.netlify.app`.
 
 ### Website làm gì với Drive
 
-- Nút **Google Drive** ở đầu trang: đăng nhập và mở thư mục gốc `Khanh's Work Space` trong Drive.
+- Nút **Google Drive** ở đầu trang: đăng nhập và mở thư mục gốc `Han's Work Space` trong Drive.
 - Trong hồ sơ một khách (Job chạy ads → bấm vào khách) → **Kết nối và tạo thư mục trên Drive**:
-  tạo `Khanh's Work Space / Job chạy ads / <Tên khách> / 00_Thong-tin ... 06_Nhat-ky-toi-uu`
+  tạo `Han's Work Space / Job chạy ads / <Tên khách> / 00_Thong-tin ... 06_Nhat-ky-toi-uu`
   (đã có thì dùng lại, không tạo trùng), rồi hiện số file thật trong từng thư mục và nút **Mở Drive ↗**.
 - Quyền xin: tạo/sửa file do website tạo ra + xem tên file (không đọc nội dung file khác của bạn).
 - Không lưu mật khẩu; token đăng nhập chỉ giữ trong tab trình duyệt (khoảng 1 giờ).
@@ -61,7 +61,7 @@ Ghi lại địa chỉ website, ví dụ `https://khanh-workspace.netlify.app`.
 - Bấm vào thẻ khách để mở hồ sơ: nút **Mở thư mục Drive ↗**, ô sửa link, đổi giai đoạn/ghi chú, xoá khách.
 - Mỗi thư mục con (01_Brief, 02_Tu-van...) có ô dán link riêng ở cuối thẻ, dán xong link tự lưu.
 - Dữ liệu lưu trong trình duyệt. Khi đã nối Google Drive (Client ID), dữ liệu tự lưu thêm vào file
-  `khanh-workspace-data.json` trong thư mục `Khanh's Work Space` để mở trên máy khác vẫn thấy.
+  `khanh-workspace-data.json` trong thư mục `Han's Work Space` để mở trên máy khác vẫn thấy.
 
 ## 5. AI agent: phân tích brief và ads với Claude
 

@@ -18,7 +18,7 @@ Website  →  Apps Script (giữ khoá)  →  Claude API
 Không gửi khoá cho ai và không dán vào code trên GitHub.
 
 ## Bước 2: Tạo Apps Script
-1. Vào https://script.google.com → **New project** (Dự án mới), đặt tên `Khanh Workspace Backend`.
+1. Vào https://script.google.com → **New project** (Dự án mới), đặt tên `Han Workspace Backend`.
 2. Xoá hết nội dung file `Code.gs` có sẵn, dán toàn bộ nội dung file [`backend/Code.gs`](Code.gs) vào, bấm 💾 lưu.
 3. Bấm ⚙️ **Project Settings** (Cài đặt dự án) → kéo xuống **Script properties** → **Add script property**, thêm:
    | Property | Value |
@@ -57,11 +57,11 @@ Muốn tự lấy số liệu:
 - **Ads → file phân tích:** hồ sơ khách → **+ Thêm ads** (dán link từ Ads Manager, link có `selected_ad_ids=...`).
   Bấm tên ads để mở ads trên Meta. Bấm **Phân tích**: Claude lấy số liệu, đánh giá, tạo file Google Docs trong `05_Bao-cao`
   và thêm một dòng vào tab "Phân tích ads" của Google Sheet (chi tiêu, CTR, CPM, kết quả, đề xuất...).
-- Google Sheet tên **Khanh's Work Space - Phân tích ads** nằm trong thư mục `Khanh's Work Space` trên Drive.
+- Google Sheet tên **Han's Work Space - Phân tích ads** nằm trong thư mục `Han's Work Space` trên Drive.
 
 ## Quy trình trong hồ sơ khách (00 → 05)
 Mở **Job chạy ads → bấm vào khách**. Mỗi bước là một thư mục trên Drive (chưa có thì AI tự tạo
-`Khanh's Work Space/Job chạy ads/<Tên khách>/00..05`), file tạo ra hiện ngay dưới bước đó:
+`Han's Work Space/Job chạy ads/<Tên khách>/00..05`), file tạo ra hiện ngay dưới bước đó:
 1. **01_Brief:** gõ brief → **Gửi agent**. Brief được lưu vào `01_Brief`, bản tư vấn + báo giá vào `02_Tu-van`.
 2. **02_Tu-van:** sửa bản tư vấn trong Google Docs (gửi khách duyệt) → **Đã sửa xong → tạo kế hoạch**.
    Agent đọc file Google Docs sửa gần nhất trong `02_Tu-van`, viết kế hoạch setup vào `03_Ke-hoach-setup`.
@@ -70,6 +70,12 @@ Mở **Job chạy ads → bấm vào khách**. Mỗi bước là một thư mụ
    Cần `META_TOKEN` (Bước 5). Chưa có token: dán số liệu xuất từ Ads Manager vào ô "Chưa có token Meta?".
 4. **05_Bao-cao:** **Tạo báo cáo + đề xuất chỉnh sửa**: dùng số liệu 04, đối chiếu kế hoạch mới nhất trong 03,
    (chế độ đa tác tử: agent Kiểm duyệt soát lại), lưu báo cáo vào `05_Bao-cao` và thêm một dòng vào tab "Báo cáo tài khoản" của Google Sheet chung.
+
+## Lịch (Google Calendar)
+Menu **Lịch** đọc lịch chính (Google Calendar) của tài khoản chạy Apps Script, theo tuần:
+bấm một sự kiện để sửa (tiêu đề, giờ, địa điểm, ghi chú) hoặc xoá, bấm **+ Thêm** để tạo mới.
+Sự kiện lặp lại chỉ xem được, sửa trong Google Calendar. Cột trái trang chủ hiện lịch hôm nay.
+Lần đầu sau khi dán code mới, chạy `kiemTra` để cấp quyền Google Calendar, rồi triển khai lại.
 
 ## Đa tác tử
 Ô **Cách chạy** trên web có 2 chế độ:

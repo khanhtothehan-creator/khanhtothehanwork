@@ -1,4 +1,4 @@
-/* ===== Linh vật của Khanh: ảnh của bạn, cắt từ tờ sticker ===== */
+/* ===== Linh vật của Han: ảnh của bạn, cắt từ tờ sticker ===== */
 const STK = {
   avatar: ['assets/img/avatar.webp', 230, 203],
   logo: ['assets/img/logo.webp', 110, 97],
@@ -56,7 +56,10 @@ const MODULES = [
   { id: 'photo', slug: 'chup-anh', name: 'Chụp ảnh job', title: 'Chụp ảnh job', sub: 'Lịch chụp, khách và file ảnh của từng job.', desc: ['Lịch chụp, khách', 'và file ảnh từng job'], w: { x: 650, y: 205 }, n: { x: 125, y: 395 }, art: 'ads', badge: 0 },
   { id: 'zh', slug: 'tieng-trung', name: 'Học tiếng Trung', title: 'Học tiếng Trung', sub: 'Từ vựng, ôn tập và TOCFL.', desc: ['Từ vựng, ôn tập', 'và TOCFL'], w: { x: 230, y: 455 }, n: { x: 355, y: 435 }, art: 'zh', badge: 12 },
   { id: 'master', slug: 'thac-si', name: 'Học thạc sĩ', title: 'Học thạc sĩ', sub: 'Các trường, hạn nộp và tiến độ từng hồ sơ.', desc: ['Trường, hạn nộp', 'và tiến độ hồ sơ'], w: { x: 440, y: 475 }, n: { x: 125, y: 605 }, art: 'school', badge: 3 },
-  { id: 'assistant', slug: 'tro-ly', name: 'Trợ lý chung', title: 'Trợ lý chung', sub: 'Hỏi gì cũng được, trợ lý chuyển đúng mục.', desc: ['Hỏi gì cũng được', 'tự chuyển đúng mục'], w: { x: 650, y: 455 }, n: { x: 355, y: 645 }, art: 'tower', badge: 0 }
+  { id: 'assistant', slug: 'tro-ly', name: 'Trợ lý chung', title: 'Trợ lý chung', sub: 'Hỏi gì cũng được, trợ lý chuyển đúng mục.', desc: ['Hỏi gì cũng được', 'tự chuyển đúng mục'], w: { x: 650, y: 455 }, n: { x: 355, y: 645 }, art: 'tower', badge: 0 },
+  // Chỉ có trên menu, không vẽ trên bản đồ
+  { id: 'lich', slug: 'lich', name: 'Lịch', title: 'Lịch làm việc', sub: 'Lịch Google Calendar theo từng ngày. Bấm vào một sự kiện để sửa, bấm "+ Thêm" để tạo mới.', nomap: true, badge: 0 },
+  { id: 'todo', slug: 'viec-can-lam', name: 'Việc cần làm', title: 'Việc cần làm', sub: 'Tick vào ô khi làm xong. Bấm vào chữ hoặc ngày để sửa.', nomap: true, badge: 0 }
 ];
 
 /* ===== Hình vẽ các toà nhà (gốc toạ độ = giữa mặt đảo, nhà cao lên phía trên) ===== */
@@ -194,13 +197,15 @@ function renderMap() {
   const roadD = smooth(ROADS[mode]);
   const svg = document.getElementById('map');
   svg.setAttribute('viewBox', LAND[mode].vb);
-  svg.innerHTML = `${skyFor(mode)}${landLayer(mode)}${groundFor(mode)}${MODULES.map(patchLayer).join('')}
-    <path class="rd-edge" d="${roadD}"/><path class="rd" d="${roadD}"/>${MODULES.map(topLayer).join('')}`;
+  svg.innerHTML = `${skyFor(mode)}${landLayer(mode)}${groundFor(mode)}${MODULES.filter(m => !m.nomap).map(patchLayer).join('')}
+    <path class="rd-edge" d="${roadD}"/><path class="rd" d="${roadD}"/>${MODULES.filter(m => !m.nomap).map(topLayer).join('')}`;
 }
 window.matchMedia('(min-width: 1040px)').addEventListener('change', renderMap);
 
 /* ===== Biểu tượng nhỏ cho tab và nút nhanh ===== */
 const ICON = {
+  lich: '<rect x="3.5" y="5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="8.5" cy="14.5" r="1.4" fill="currentColor"/><circle cx="12" cy="14.5" r="1.4" fill="currentColor"/>',
+  todo: '<path d="M4 6.5l1.8 1.8L9 5M4 12.5l1.8 1.8L9 11M4 18.5l1.8 1.8L9 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7h8M12 13h8M12 19h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
   home: '<path d="M3 11 12 4l9 7v9H3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>',
   ads: '<path d="M5 20V12M12 20V5M19 20v-9" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>',
   zh: '<text x="12" y="18.5" text-anchor="middle" font-size="18" font-weight="800" fill="currentColor" font-family="var(--font-han)">學</text>',
@@ -325,14 +330,14 @@ VIEWS.photo = () => `
 });
 
 /* ===== Hồ sơ riêng từng khách ===== */
-/* Thư mục của mỗi khách = các bước làm việc: [tên thư mục, việc ở bước này] */
+/* Thư mục của mỗi khách = các bước làm việc: [tên thư mục trên Drive, tên bước, việc ở bước này] */
 const FOLDERS = [
-  ['00_Thong-tin', 'Hợp đồng, liên hệ, quyền tài khoản ads. Chỉ bạn xem.'],
-  ['01_Brief', 'Nhập brief của khách, agent phân tích và viết bản tư vấn vào 02_Tu-van.'],
-  ['02_Tu-van', 'Bản tư vấn + báo giá. Bạn sửa trong Google Docs, xong thì tạo kế hoạch.'],
-  ['03_Ke-hoach-setup', 'Kế hoạch setup chi tiết, làm từ bản tư vấn đã sửa.'],
-  ['04_So-ads-Meta', 'Số liệu Meta Ads của tài khoản và từng chiến dịch.'],
-  ['05_Bao-cao', 'Báo cáo, đánh giá và đề xuất chỉnh sửa từ số liệu 04.']
+  ['00_Thong-tin', 'Thông tin khách hàng', 'Hợp đồng, thông tin liên hệ, quyền truy cập tài khoản quảng cáo. Chỉ mình bạn xem.'],
+  ['01_Brief', 'Brief từ khách', 'Nhập yêu cầu của khách. Các agent sẽ phân tích và viết bản tư vấn ở bước 2.'],
+  ['02_Tu-van', 'Tư vấn và báo giá', 'Bản tư vấn do AI viết. Bạn chỉnh sửa trong Google Docs, gửi khách duyệt, rồi bấm tạo kế hoạch.'],
+  ['03_Ke-hoach-setup', 'Kế hoạch triển khai', 'Kế hoạch setup chi tiết, lập từ bản tư vấn đã chốt ở bước 2.'],
+  ['04_So-ads-Meta', 'Số liệu Meta Ads', 'Số liệu của tài khoản quảng cáo và từng chiến dịch, lấy trực tiếp từ Meta.'],
+  ['05_Bao-cao', 'Báo cáo và đề xuất', 'Đánh giá hiệu quả và đề xuất chỉnh sửa, dựa trên số liệu ở bước 4.']
 ];
 const RANGE_OPTS = [['last_7d', '7 ngày qua'], ['last_14d', '14 ngày qua'], ['last_30d', '30 ngày qua'], ['this_month', 'Tháng này'], ['last_month', 'Tháng trước'], ['maximum', 'Từ trước đến nay']];
 const OUT = {}; // kết quả vừa chạy của từng bước, giữ lại khi trang vẽ lại
@@ -385,38 +390,49 @@ VIEWS.client = function (i) {
     <div class="tablewrap"><table><thead><tr><th>Chiến dịch</th><th>Trạng thái</th><th class="num">Chi tiêu</th><th class="num">Hiển thị</th><th class="num">CTR</th><th class="num">CPM</th><th>Kết quả</th><th class="num">Chi phí/KQ</th></tr></thead><tbody>
     ${m.campaigns.map(x => `<tr><td><b>${esc(x.name)}</b><br><span class="hint-i">${esc(x.objective || '')}${x.budget ? ' · ' + esc(x.budget) : ''}</span></td><td><span class="pill ${x.status === 'ACTIVE' ? 'on' : ''}">${esc(x.status)}</span></td><td class="num">${num(x.spend)}</td><td class="num">${num(x.impressions)}</td><td class="num">${num(x.ctr)}%</td><td class="num">${num(x.cpm)}</td><td>${num(x.results)} ${esc(x.result_label)}</td><td class="num">${x.results ? num(x.cost_per_result) : '-'}</td></tr>`).join('') || '<tr><td colspan="8">Không có chiến dịch nào chạy trong khoảng này.</td></tr>'}
     </tbody></table></div>` : '';
-  const head = (k, f) => `<div class="sth"><span class="stn">${k}</span><b class="mono">${f}</b>${lk(f) ? `<a class="pill on" href="${lk(f)}" target="_blank" rel="noopener">Mở thư mục ↗</a>` : '<span class="pill">Chưa có thư mục</span>'}</div>`;
-  const linkBox = f => `<details class="flinkbox"><summary>Link thư mục ${f}</summary><input class="flink" type="url" data-flink="${f}" value="${esc(lk(f))}" placeholder="Dán link thư mục ${f} (để trống thì AI tự tạo)" aria-label="Link Drive của ${f}"></details>`;
-  const step = (k, extra) => { const f = FOLDERS[k]; return `<div class="step">${head('0' + k, f[0])}<p class="hint">${f[1]}</p>${extra || ''}${docsIn(f[0])}${linkBox(f[0])}</div>`; };
+  const nDocs = sub => (c.docs || []).filter(d => d.sub === sub).length;
+  const status = k => { const f = FOLDERS[k][0];
+    if (k === 4 && m) return ['on', 'Đã lấy số liệu'];
+    if (k === 0) return lk(f) ? ['on', 'Đã có thư mục'] : ['', 'Tuỳ chọn'];
+    return nDocs(f) ? ['on', `Đã có ${nDocs(f)} file`] : ['', 'Chưa làm']; };
+  const step = (k, extra) => {
+    const f = FOLDERS[k], st = status(k);
+    return `<li class="step ${st[0] ? 'done' : ''}"><span class="stn" aria-hidden="true">${st[0] ? '✓' : k}</span><div class="stc">
+      <div class="sth"><h4>Bước ${k}. ${f[1]}</h4><span class="pill ${st[0]}">${st[1]}</span></div>
+      <p class="hint">${f[2]}</p>${extra || ''}
+      ${nDocs(f[0]) ? `<p class="stlab">File đã tạo</p>${docsIn(f[0])}` : ''}
+      <div class="stfoot"><span>Thư mục Drive: <span class="mono">${f[0]}</span></span>${lk(f[0]) ? `<a href="${lk(f[0])}" target="_blank" rel="noopener">Mở thư mục ↗</a>` : '<span class="hint-i">chưa có, AI sẽ tự tạo</span>'}
+        <details class="flinkbox"><summary>Đổi link thư mục</summary><input class="flink" type="url" data-flink="${f[0]}" value="${esc(lk(f[0]))}" placeholder="Dán link thư mục Google Drive (để trống thì AI tự tạo)" aria-label="Link thư mục ${f[1]}"></details></div>
+    </div></li>`; };
   return `<div class="iso"><b>Thư mục Drive của ${n}</b>
       ${link(c.drive) ? `<div class="drvact"><a class="btn" href="${link(c.drive)}" target="_blank" rel="noopener">Mở thư mục Drive của ${n} ↗</a></div>` : `<p>Chưa có thư mục. Lần đầu chạy AI, thư mục và các thư mục con sẽ tự được tạo. Hoặc dán link thư mục có sẵn vào ô dưới.</p>`}
       <div class="row"><input type="url" id="clDrive" value="${esc(link(c.drive))}" placeholder="https://drive.google.com/drive/folders/..." aria-label="Link thư mục Drive của ${n}"><button class="btn" type="button" id="clDriveSave">${link(c.drive) ? 'Lưu link mới' : 'Lưu link'}</button></div></div>
     <div class="iso"><b>Thông tin khách</b>
       <div class="two"><label>Giai đoạn<select id="clStage">${stageOpts}</select></label><label>Ghi chú<input type="text" id="clNote" value="${esc(c.note || '')}" maxlength="120"></label></div>
       <div class="row"><button class="crumb danger" type="button" id="clDel">Xoá khách này khỏi web</button></div></div>
-    <div class="block"><h3>Quy trình làm việc của ${n}</h3><p class="hint">Mỗi bước là một thư mục trên Drive. File AI tạo ra được lưu vào đúng thư mục và hiện ngay dưới bước đó.</p>
-    <div class="steps">
+    <div class="block"><h3>Quy trình làm việc với ${n}</h3><p class="hint">Làm lần lượt từ bước 1 đến bước 5. Mỗi bước ứng với một thư mục trên Google Drive; file AI tạo ra được lưu vào đúng thư mục và hiện ngay trong bước đó.</p>
+    <ol class="steps">
     ${step(0)}
-    ${step(1, `<textarea class="cf" data-cf="brief" rows="6" placeholder="Nhập brief của khách: sản phẩm, mục tiêu, ngân sách, thời gian, khu vực, khách hàng mục tiêu...">${esc(c.brief || '')}</textarea>
-      <div class="row"><select data-mk="mode" aria-label="Cách chạy"><option value="multi"${SEL.mode !== 'fast' ? ' selected' : ''}>Đa tác tử (5 agent, 1-3 phút)</option><option value="fast"${SEL.mode === 'fast' ? ' selected' : ''}>Nhanh (1 agent)</option></select>
-      <button class="btn" type="button" data-run="brief">Gửi agent → tạo tư vấn vào 02_Tu-van</button></div>${out('brief')}`)}
-    ${step(2, `<textarea class="cf" data-cf="planNote" rows="2" placeholder="Ghi chú thêm cho kế hoạch (không bắt buộc), VD: khách duyệt gói 15%, chạy từ 01/11">${esc(c.planNote || '')}</textarea>
-      <div class="row"><button class="btn" type="button" data-run="plan"${has02 ? '' : ' disabled'}>Đã sửa xong → tạo kế hoạch vào 03</button>${has02 ? '' : '<span class="hint-i">Chạy bước 01 trước.</span>'}</div>
-      <p class="hint-i">Agent đọc bản Google Docs sửa gần nhất trong 02_Tu-van.</p>${out('plan')}`)}
+    ${step(1, `<textarea class="cf" data-cf="brief" rows="6" placeholder="Nhập yêu cầu của khách: sản phẩm, mục tiêu, ngân sách, thời gian chạy, khu vực, khách hàng mục tiêu..." aria-label="Brief từ khách">${esc(c.brief || '')}</textarea>
+      <div class="row"><select data-mk="mode" aria-label="Cách chạy"><option value="multi"${SEL.mode !== 'fast' ? ' selected' : ''}>Kỹ: 5 agent phối hợp (1-3 phút)</option><option value="fast"${SEL.mode === 'fast' ? ' selected' : ''}>Nhanh: 1 agent (khoảng 30 giây)</option></select>
+      <button class="btn" type="button" data-run="brief">Gửi cho agent phân tích</button></div>${out('brief')}`)}
+    ${step(2, `<textarea class="cf" data-cf="planNote" rows="2" placeholder="Ghi chú thêm cho kế hoạch (không bắt buộc). Ví dụ: khách đã duyệt gói phí 15%, bắt đầu chạy từ 01/11" aria-label="Ghi chú cho kế hoạch">${esc(c.planNote || '')}</textarea>
+      <div class="row"><button class="btn" type="button" data-run="plan"${has02 ? '' : ' disabled'}>Đã sửa xong, tạo kế hoạch</button>${has02 ? '' : '<span class="hint-i">Cần làm bước 1 trước.</span>'}</div>
+      <p class="hint-i">Agent đọc file Google Docs bạn sửa gần nhất trong thư mục 02_Tu-van, rồi lưu kế hoạch vào bước 3.</p>${out('plan')}`)}
     ${step(3)}
-    ${step(4, `<div class="two"><label>ID tài khoản quảng cáo<input type="text" class="cf" data-cf="adAccount" value="${esc(c.adAccount || '')}" placeholder="act_123456789 hoặc link Ads Manager"></label>
+    ${step(4, `<div class="two"><label>Mã tài khoản quảng cáo<input type="text" class="cf" data-cf="adAccount" value="${esc(c.adAccount || '')}" placeholder="act_123456789 hoặc dán link Ads Manager"></label>
       <label>Khoảng thời gian<select class="cf" data-cf="metaRange">${rangeOpts}</select></label></div>
-      <div class="row"><button class="btn" type="button" data-run="meta">Lấy số liệu Meta</button></div>${out('meta')}${metaView}
-      <details class="admore"><summary>Chưa có token Meta? Dán số liệu xuất từ Ads Manager</summary>
+      <div class="row"><button class="btn" type="button" data-run="meta">Lấy số liệu từ Meta</button></div>${out('meta')}${metaView}
+      <details class="admore"><summary>Chưa kết nối Meta? Dán số liệu copy từ Ads Manager</summary>
         <textarea class="cf" data-cf="metaPaste" rows="4" placeholder="Copy bảng chiến dịch trong Ads Manager (chi tiêu, hiển thị, CTR, CPM, kết quả...) rồi dán vào đây">${esc(c.metaPaste || '')}</textarea></details>
       <details class="admore"${(c.ads || []).length ? ' open' : ''}><summary>Phân tích từng mẫu ads (${(c.ads || []).length})</summary>
         <div class="adlist">${(c.ads || []).map((a, ai) => adRow(i, ai, false)).join('')}</div>
         <form id="adForm" class="clform"><div class="two"><label>Tên ads<input type="text" name="name" maxlength="120" placeholder="VD: ShopA_Mess_Broad_Video01"></label>
           <label>Link ads (Ads Manager)<input type="url" name="url" required placeholder="https://adsmanager.facebook.com/...selected_ad_ids=..."></label></div>
           <div class="row"><button class="btn" type="submit">+ Thêm ads</button></div></form></details>`)}
-    ${step(5, `<div class="row"><button class="btn" type="button" data-run="report"${m || c.metaPaste ? '' : ' disabled'}>Tạo báo cáo + đề xuất chỉnh sửa</button>${m || c.metaPaste ? '' : '<span class="hint-i">Lấy số liệu ở bước 04 trước.</span>'}</div>
-      <p class="hint-i">Dùng số liệu 04, đối chiếu kế hoạch mới nhất trong 03.${SEL.mode !== 'fast' ? ' Có agent Kiểm duyệt soát lại.' : ''}</p>${out('report')}`)}
-    </div></div>`;
+    ${step(5, `<div class="row"><button class="btn" type="button" data-run="report"${m || c.metaPaste ? '' : ' disabled'}>Viết báo cáo và đề xuất</button>${m || c.metaPaste ? '' : '<span class="hint-i">Cần lấy số liệu ở bước 4 trước.</span>'}</div>
+      <p class="hint-i">Dùng số liệu bước 4, đối chiếu kế hoạch mới nhất ở bước 3.${SEL.mode !== 'fast' ? ' Agent Kiểm duyệt sẽ soát lại trước khi lưu.' : ''}</p>${out('report')}`)}
+    </ol></div>`;
 };
 
 /* ===== Điều hướng kiểu trình duyệt: lùi, tiến, tải lại, thanh địa chỉ ===== */
@@ -443,6 +459,7 @@ function render(v, focus) {
     } else {
       $('modTitle').textContent = m.title; $('modSub').textContent = m.sub;
       $('modBody').innerHTML = VIEWS[m.id](); $('crumb').textContent = '← Về bản đồ';
+      if (m.id === 'lich') calLoad(false);
       if (m.id === 'ads') calc();
     }
   }
@@ -469,16 +486,9 @@ $('tabbar').innerHTML = `<span class="logo" aria-hidden="true">${stk('logo', 'lg
     .map(t => `<button class="tab" role="tab" type="button" data-go="${t.id}" aria-selected="false">${ico(t.id)}<span>${t.name}</span></button>`).join('');
 $('qgrid').innerHTML = open.map(m => `<button class="qb q-${m.id}" type="button" data-go="${m.id}" aria-label="${m.title}">${ico(m.id)}<span>${m.name}</span></button>`).join('');
 $('flw').innerHTML = Array.from({ length: 12 }, flower).join('');
-$('avatar').innerHTML = stk('avatar', 'av', 'Linh vật của Khanh');
+$('avatar').innerHTML = stk('avatar', 'av', 'Linh vật của Han');
 $('sToday').textContent = `${dow}, ${now.getDate()}/${now.getMonth() + 1}`;
-$('sOpen').textContent = `${open.length} mục`;
 $('sPend').textContent = total;
-$('notes').innerHTML = [
-  ['chờ:', `${waiting} khách đang chờ bạn (mới, đã gửi tư vấn, đang sửa).`],
-  ['ôn:', '12 từ tiếng Trung cần ôn hôm nay.'],
-  ['hạn:', `${unsent} hồ sơ thạc sĩ chưa nhập hạn nộp.`],
-  ['drive:', '<span id="drvNote"></span>']
-].map(r => `<div class="nrow"><b class="lab">${r[0]}</b><span>${r[1]}</span></div>`).join('');
 
 /* ===== Tương tác ===== */
 function calc() {
@@ -565,6 +575,149 @@ function checkBackend() {
   }).catch(err => { if (info) info.textContent = err.message; toast(err.message); });
 }
 
+/* ===== Việc cần làm (lưu trong trình duyệt) ===== */
+let TODOS = (() => { try { return JSON.parse(localStorage.getItem('kws.todo')) || []; } catch (e) { return []; } })();
+const saveTodos = () => { try { localStorage.setItem('kws.todo', JSON.stringify(TODOS)); } catch (e) { /* bỏ qua */ } };
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dmy = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
+const dueTag = t => { if (!t.due) return ''; const today = ymd(new Date()); const cls = !t.done && t.due < today ? 'late' : t.due === today ? 'today' : '';
+  return `<span class="due ${cls}">${t.due === today ? 'hôm nay' : dmy(t.due)}${cls === 'late' ? ' (quá hạn)' : ''}</span>`; };
+const todoSort = (a, b) => (a.done - b.done) || ((a.due || '9999') < (b.due || '9999') ? -1 : (a.due || '9999') > (b.due || '9999') ? 1 : b.t - a.t);
+function todoItem(t, full) {
+  return `<li class="td${t.done ? ' done' : ''}"><input type="checkbox" data-tdk="${t.id}"${t.done ? ' checked' : ''} aria-label="Đã xong: ${esc(t.text)}">
+    ${full ? `<input class="tdt" type="text" data-tdt="${t.id}" value="${esc(t.text)}" aria-label="Sửa việc">
+      <input class="tdd" type="date" data-tdd="${t.id}" value="${esc(t.due || '')}" aria-label="Hạn">
+      <button type="button" class="tdx" data-tdx="${t.id}" aria-label="Xoá việc">✕</button>`
+      : `<span class="tdtx">${esc(t.text)}</span>${dueTag(t)}`}</li>`;
+}
+const addForm = id => `<form class="tdadd" id="${id}"><input type="text" name="text" maxlength="200" placeholder="Thêm việc mới..." aria-label="Việc mới" required><input type="date" name="due" aria-label="Hạn (không bắt buộc)"><button class="btn" type="submit">Thêm</button></form>`;
+VIEWS.todo = () => {
+  const tab = SEL.todoTab || 'open', open = TODOS.filter(t => !t.done), done = TODOS.filter(t => t.done);
+  const list = (tab === 'open' ? open : tab === 'done' ? done : TODOS).slice().sort(todoSort);
+  return `<div class="block">${addForm('tdForm')}
+    <div class="seg" role="group" aria-label="Lọc việc">${[['open', `Chưa xong (${open.length})`], ['done', `Đã xong (${done.length})`], ['all', 'Tất cả']].map(x => `<button type="button" data-tdtab="${x[0]}" aria-pressed="${tab === x[0]}">${x[1]}</button>`).join('')}</div>
+    <ul class="tdlist">${list.map(t => todoItem(t, true)).join('') || `<li class="hint">${tab === 'done' ? 'Chưa có việc nào xong.' : 'Không còn việc nào. Thêm việc mới ở ô trên.'}</li>`}</ul>
+    ${done.length ? '<button type="button" class="crumb" id="tdClear">Xoá các việc đã xong</button>' : ''}</div>`;
+};
+function renderHomeTodo() {
+  const el = $('notes'); if (!el) return;
+  const open = TODOS.filter(t => !t.done).sort(todoSort);
+  el.innerHTML = `<div class="hometodo"><div class="htt"><b>Việc cần làm</b><a href="#/viec-can-lam" class="hint-i">Xem tất cả (${open.length}) →</a></div>
+    <ul class="tdlist">${open.slice(0, 6).map(t => todoItem(t, false)).join('') || '<li class="hint">Chưa có việc nào. Thêm ở ô dưới nhé.</li>'}</ul>${addForm('tdQuick')}</div>`;
+}
+function todosChanged() {
+  saveTodos(); refreshCounts(); renderHomeTodo();
+  if (cur.m === 'todo') render(cur, false);
+}
+document.addEventListener('change', e => {
+  const d = e.target.dataset || {};
+  const t = TODOS.find(x => x.id === (d.tdk || d.tdt || d.tdd)); if (!t) return;
+  if (d.tdk) t.done = e.target.checked;
+  if (d.tdt) { const v = e.target.value.trim(); if (!v) { e.target.value = t.text; return; } t.text = v; }
+  if (d.tdd !== undefined && 'tdd' in d) t.due = e.target.value;
+  todosChanged();
+});
+document.addEventListener('click', e => {
+  const x = e.target.closest('[data-tdx]'); if (x) { TODOS = TODOS.filter(t => t.id !== x.dataset.tdx); todosChanged(); }
+  const tb = e.target.closest('[data-tdtab]'); if (tb) { SEL.todoTab = tb.dataset.tdtab; render(cur, false); }
+  if (e.target.closest('#tdClear') && confirm('Xoá tất cả việc đã xong?')) { TODOS = TODOS.filter(t => !t.done); todosChanged(); }
+});
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'tdForm' && e.target.id !== 'tdQuick') return;
+  e.preventDefault();
+  const text = e.target.text.value.trim(); if (!text) return;
+  TODOS.push({ id: 't' + Date.now().toString(36), text, due: e.target.due.value, done: false, t: Date.now() });
+  todosChanged();
+  const f = $(e.target.id); if (f) f.text.focus();
+});
+
+/* ===== Lịch (Google Calendar qua backend Apps Script) ===== */
+const DOW = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+const mondayOf = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const hm = iso => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const CAL = { start: mondayOf(new Date()), events: [], key: '', loading: false, err: '', edit: null, today: null };
+const onDay = (e, day) => e.allDay ? e.date <= day && day <= (e.endDate || e.date) : ymd(new Date(e.start)) === day;
+const evSort = (a, b) => (b.allDay - a.allDay) || String(a.start).localeCompare(String(b.start));
+
+function calLoad(force) {
+  if (!AI.ready()) { CAL.err = 'need'; paintCal(); paintMini(); return; }
+  const key = ymd(CAL.start);
+  if (!force && CAL.key === key) { paintCal(); return; }
+  CAL.loading = true; paintCal();
+  AI.call('calList', { from: CAL.start.toISOString(), to: addDays(CAL.start, 7).toISOString() })
+    .then(d => { CAL.events = d.events; CAL.key = key; CAL.err = '';
+      if (key === ymd(mondayOf(new Date()))) CAL.today = d.events.filter(e => onDay(e, ymd(new Date()))).sort(evSort); })
+    .catch(err => { CAL.err = err.message; })
+    .finally(() => { CAL.loading = false; paintCal(); paintMini(); });
+}
+VIEWS.lich = () => '<div id="calWrap"></div>';
+function paintCal() {
+  const el = $('calWrap'); if (!el) return;
+  const s0 = CAL.start, s6 = addDays(s0, 6), today = ymd(new Date());
+  const gLink = `https://calendar.google.com/calendar/r/week/${s0.getFullYear()}/${s0.getMonth() + 1}/${s0.getDate()}`;
+  if (CAL.err === 'need') { el.innerHTML = `<div class="iso"><b>Chưa nối Google Calendar</b><p>Lịch đọc qua backend Apps Script (cùng backend với AI). Nối backend một lần là xem và sửa được lịch ở đây.</p><div class="row"><button class="btn" type="button" data-calsetup>Nối backend</button><a class="crumb" href="${gLink}" target="_blank" rel="noopener">Mở Google Calendar ↗</a></div></div>`; return; }
+  const days = Array.from({ length: 7 }, (_, i) => addDays(s0, i));
+  const col = d => { const k = ymd(d), evs = CAL.events.map((e, i) => [e, i]).filter(x => onDay(x[0], k)).sort((a, b) => evSort(a[0], b[0]));
+    return `<div class="cday${k === today ? ' today' : ''}"><div class="cdh"><b>${DOW[d.getDay()]}</b><span>${d.getDate()}/${d.getMonth() + 1}</span></div>
+      ${evs.map(([e, i]) => `<button type="button" class="ev${e.allDay ? ' all' : ''}" data-evi="${i}"><span>${e.allDay ? 'Cả ngày' : hm(e.start) + ' - ' + hm(e.end)}</span><b>${esc(e.title || '(Không có tiêu đề)')}</b>${e.location ? `<i>${esc(e.location)}</i>` : ''}</button>`).join('')}
+      <button type="button" class="evadd" data-evnew="${k}">+ Thêm</button></div>`; };
+  el.innerHTML = `<div class="ctool"><div class="row"><button type="button" class="crumb" data-calnav="-7" aria-label="Tuần trước">‹ Tuần trước</button><button type="button" class="crumb" data-calnav="0">Tuần này</button><button type="button" class="crumb" data-calnav="7" aria-label="Tuần sau">Tuần sau ›</button></div>
+      <b>${s0.getDate()}/${s0.getMonth() + 1} - ${s6.getDate()}/${s6.getMonth() + 1}/${s6.getFullYear()}</b>
+      <div class="row"><button type="button" class="crumb" data-calnav="r">Tải lại</button><a class="crumb" href="${gLink}" target="_blank" rel="noopener">Mở Google Calendar ↗</a></div></div>
+    ${CAL.loading ? '<p class="hint">Đang tải lịch...</p>' : ''}${CAL.err ? `<p class="hint err">${esc(CAL.err)}</p>` : ''}
+    ${calEditor()}
+    <div class="cweek">${days.map(col).join('')}</div>`;
+}
+function calEditor() {
+  const e = CAL.edit; if (!e) return '';
+  const st = e.allDay ? '09:00' : hm(e.start), et = e.allDay ? '10:00' : hm(e.end), date = e.allDay ? e.date : ymd(new Date(e.start));
+  return `<form id="calForm" class="clform calform${e.allDay ? ' allday' : ''}"><h4>${e.id ? 'Sửa sự kiện' : 'Thêm sự kiện'}</h4>
+    ${e.recurring ? '<p class="hint">Đây là sự kiện lặp lại, chỉ sửa được trong Google Calendar.</p>' : ''}
+    <label>Tiêu đề<input type="text" name="title" value="${esc(e.title || '')}" maxlength="200" required></label>
+    <div class="two"><label>Ngày<input type="date" name="date" value="${date}" required></label>
+      <label class="chk"><input type="checkbox" name="allDay" id="calAllDay"${e.allDay ? ' checked' : ''}> Cả ngày</label></div>
+    <div class="two timef"><label>Bắt đầu<input type="time" name="start" value="${st}"></label><label>Kết thúc<input type="time" name="end" value="${et}"></label></div>
+    <div class="two dayf"><label>Đến ngày (nếu nhiều ngày)<input type="date" name="endDate" value="${e.allDay && e.endDate && e.endDate !== e.date ? e.endDate : ''}"></label></div>
+    <label>Địa điểm<input type="text" name="location" value="${esc(e.location || '')}"></label>
+    <label>Ghi chú<textarea name="description" rows="3">${esc(e.description || '')}</textarea></label>
+    <div class="row"><button class="btn" type="submit"${e.recurring ? ' disabled' : ''}>Lưu</button>${e.id && !e.recurring ? '<button class="crumb danger" type="button" id="calDel">Xoá sự kiện</button>' : ''}<button class="crumb" type="button" id="calCancel">Huỷ</button></div></form>`;
+}
+function paintMini() {
+  const el = $('calMini'); if (!el) return;
+  const list = CAL.today;
+  el.innerHTML = `<div class="mh"><b>Lịch hôm nay</b><a href="#/lich" class="hint-i">Mở lịch →</a></div>` + (!AI.ready() ? '<p class="hint-i">Chưa nối Google Calendar. Bấm "Mở lịch" để nối.</p>'
+    : list === null ? '<p class="hint-i">Đang tải...</p>'
+    : list.length ? `<ul>${list.map(e => `<li><span>${e.allDay ? 'Cả ngày' : hm(e.start)}</span> ${esc(e.title || '(Không có tiêu đề)')}</li>`).join('')}</ul>` : '<p class="hint-i">Hôm nay không có lịch.</p>');
+}
+document.addEventListener('click', e => {
+  const nav = e.target.closest('[data-calnav]');
+  if (nav) { const v = nav.dataset.calnav; if (v === 'r') return calLoad(true); CAL.start = v === '0' ? mondayOf(new Date()) : addDays(CAL.start, +v); CAL.edit = null; return calLoad(false); }
+  if (e.target.closest('[data-calsetup]')) { if (AI.setup(true)) { CAL.err = ''; calLoad(true); } return; }
+  const ev = e.target.closest('[data-evi]'); if (ev) { CAL.edit = { ...CAL.events[+ev.dataset.evi] }; paintCal(); $('calForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  const nw = e.target.closest('[data-evnew]'); if (nw) { const d = nw.dataset.evnew; CAL.edit = { title: '', allDay: false, start: new Date(d + 'T09:00').toISOString(), end: new Date(d + 'T10:00').toISOString() }; paintCal(); $('calForm').title.focus(); return; }
+  if (e.target.closest('#calCancel')) { CAL.edit = null; paintCal(); }
+  if (e.target.closest('#calDel') && CAL.edit && confirm('Xoá sự kiện này khỏi Google Calendar?')) {
+    AI.call('calDelete', { id: CAL.edit.id }).then(() => { toast('Đã xoá sự kiện.'); CAL.edit = null; calLoad(true); }).catch(err => toast(err.message));
+  }
+});
+document.addEventListener('change', e => { if (e.target.id === 'calAllDay') $('calForm').classList.toggle('allday', e.target.checked); });
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'calForm') return;
+  e.preventDefault();
+  const f = e.target, allDay = f.allDay.checked, date = f.date.value;
+  const body = { id: CAL.edit && CAL.edit.id, title: f.title.value.trim(), location: f.location.value.trim(), description: f.description.value.trim(), allDay };
+  if (allDay) { body.date = date; body.endDate = f.endDate.value; }
+  else {
+    const s = new Date(date + 'T' + (f.start.value || '09:00')), en = new Date(date + 'T' + (f.end.value || '10:00'));
+    if (en <= s) { toast('Giờ kết thúc phải sau giờ bắt đầu.'); return; }
+    body.start = s.toISOString(); body.end = en.toISOString();
+  }
+  const btn = f.querySelector('[type=submit]'); wait(btn, true, 'Đang lưu...');
+  AI.call('calSave', body).then(() => { toast('Đã lưu vào Google Calendar.'); CAL.edit = null; calLoad(true); })
+    .catch(err => { toast(err.message); wait(btn, false); });
+});
+
 /* ===== Quy trình theo thư mục khách ===== */
 async function runStep(kind) {
   const ci = cur.c, c = CLIENTS[ci]; if (!c) return;
@@ -582,12 +735,12 @@ async function runStep(kind) {
       const d = SEL.mode !== 'fast' ? await summarizeMulti(c, c.brief, box, { briefFolder: link(c.links && c.links['01_Brief']) })
         : await AI.call('consult', { brief: c.brief, client: c.n, ...dirs(c, '02_Tu-van'), briefFolder: link(c.links && c.links['01_Brief']) });
       if (d.briefDoc) addDoc(c, { doc: d.briefDoc }, '01_Brief');
-      done(d, '02_Tu-van', docBtn(d, 'Mở bản tư vấn (02_Tu-van)') + detailsOf('Xem nhanh bản tư vấn', md(d.text)) + '<p class="hint">Sửa bản tư vấn trong Google Docs, gửi khách duyệt, rồi bấm "Đã sửa xong → tạo kế hoạch" ở bước 02.</p>');
+      done(d, '02_Tu-van', docBtn(d, 'Mở bản tư vấn') + detailsOf('Xem nhanh bản tư vấn', md(d.text)) + '<p class="hint">Bước tiếp theo: sửa bản tư vấn trong Google Docs, gửi khách duyệt, rồi bấm "Đã sửa xong, tạo kế hoạch" ở bước 2.</p>');
     } else if (kind === 'plan') {
       wait(btn, true, 'Agent đang lập kế hoạch...'); show('<p class="hint">Đang đọc bản tư vấn mới nhất trong 02_Tu-van và lập kế hoạch...</p>');
       const last02 = (c.docs || []).find(x => x.sub === '02_Tu-van');
       const d = await AI.call('plan', { client: c.n, ...dirs(c, '03_Ke-hoach-setup'), sourceFolder: link(c.links && c.links['02_Tu-van']), sourceDoc: last02 ? last02.url : '', note: c.planNote || '', provider: agentModel('ke_hoach') });
-      done(d, '03_Ke-hoach-setup', `<p class="hint">Dựa trên: <a href="${link(d.source.url)}" target="_blank" rel="noopener">${esc(d.source.title)}</a></p>` + docBtn(d, 'Mở kế hoạch (03_Ke-hoach-setup)') + detailsOf('Xem nhanh kế hoạch', md(d.text)));
+      done(d, '03_Ke-hoach-setup', `<p class="hint">Dựa trên: <a href="${link(d.source.url)}" target="_blank" rel="noopener">${esc(d.source.title)}</a></p>` + docBtn(d, 'Mở kế hoạch') + detailsOf('Xem nhanh kế hoạch', md(d.text)));
     } else if (kind === 'meta') {
       wait(btn, true, 'Đang lấy số liệu...'); show('<p class="hint">Đang lấy số liệu tài khoản và từng chiến dịch từ Meta...</p>');
       const d = await AI.call('metaPull', { client: c.n, account: c.adAccount, range: c.metaRange || 'last_7d', ...dirs(c, '04_So-ads-Meta') });
@@ -600,7 +753,7 @@ async function runStep(kind) {
       const last03 = (c.docs || []).find(x => x.sub === '03_Ke-hoach-setup');
       const d = await AI.call('report', { client: c.n, meta: c.meta ? { account: c.meta.account, campaigns: c.meta.campaigns } : null, paste: c.metaPaste || '', ...dirs(c, '05_Bao-cao'),
         planFolder: link(c.links && c.links['03_Ke-hoach-setup']), planDoc: last03 ? last03.url : '', review: SEL.mode !== 'fast', provider: agentModel('bao_cao'), reviewProvider: agentModel('kiem_duyet') });
-      done(d, '05_Bao-cao', docBtn(d, 'Mở báo cáo (05_Bao-cao)')
+      done(d, '05_Bao-cao', docBtn(d, 'Mở báo cáo')
         + (d.check ? `<p class="hint">Kiểm duyệt: ${d.check.dat ? 'đạt' : esc(d.check.van_de.join('; ')) + ' (đã sửa trong file)'}</p>` : '') + detailsOf('Xem nhanh báo cáo', md(d.text)));
     }
     toast('Xong. File đã lưu vào thư mục của ' + c.n + '.');
@@ -681,7 +834,7 @@ $('nFwd').addEventListener('click', goFwd);
 $('nReload').addEventListener('click', () => render(cur, false));
 $('crumb').addEventListener('click', () => go(cur.c != null ? { m: cur.m, c: null } : { m: null, c: null }));
 $('drive').addEventListener('click', openDrive);
-$('todayBtn').addEventListener('click', () => { go({ m: null, c: null }); $('notes').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+$('todayBtn').addEventListener('click', () => go({ m: 'todo', c: null }));
 $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
@@ -774,7 +927,8 @@ async function pullData() {
 }
 function refreshCounts() {
   MODULES.find(x => x.id === 'ads').badge = CLIENTS.filter(c => c.s <= 2).length;
-  renderMap();
+  MODULES.find(x => x.id === 'todo').badge = TODOS.filter(t => !t.done).length;
+  mapMode = null; renderMap();
   $('sPend').textContent = MODULES.reduce((s, m) => s + m.badge, 0);
 }
 async function openDrive() {
@@ -822,3 +976,5 @@ renderMap();
 hist.push(fromHash()); hi = 0; render(hist[0], false);
 refreshDriveNote();
 if (Drive.connected()) pullData().catch(() => {});
+refreshCounts(); renderHomeTodo(); paintMini();
+if (AI.ready()) calLoad(false);
