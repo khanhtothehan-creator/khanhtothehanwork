@@ -789,6 +789,9 @@ async function runStep(kind) {
       const d = await AI.call('metaPull', { client: c.n, account: c.adAccount, range: c.metaRange || 'last_7d', ...dirs(c, '04_So-ads-Meta') });
       applyFolders(c, d.folders);
       c.meta = { t: new Date().toLocaleString('vi-VN'), account: d.account, campaigns: d.campaigns, sheet: d.sheet };
+      // File Google Sheet số liệu hiện trong danh sách file của bước 4 (có nút xoá)
+      c.docs = c.docs || [];
+      if (d.sheet && !c.docs.some(x => x.url === d.sheet)) c.docs.unshift({ t: c.meta.t, title: `Số liệu Meta - ${c.n} (Google Sheet)`, url: d.sheet, sub: '04_So-ads-Meta' });
       saveData(); OUT[key] = ''; if (cur.c === ci) render(cur, false);
       toast('Đã lấy số liệu và lưu vào Google Sheet trong 04_So-ads-Meta.'); return;
     } else if (kind === 'report') {
