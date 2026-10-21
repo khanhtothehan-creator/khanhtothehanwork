@@ -379,7 +379,7 @@ function md(t) {
 VIEWS.client = function (i) {
   const c = CLIENTS[i], s = c.s, n = esc(c.n);
   const lk = f => link(c.links && c.links[f]);
-  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">📄 ${esc(d.title)}</a> <span class="hint-i">${esc(d.t)}</span></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
+  const docsIn = sub => { const l = (c.docs || []).filter(d => d.sub === sub); return l.length ? `<ul class="fdocs">${l.slice(0, 5).map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">${d.up ? '📎' : '📄'} ${esc(d.title)}</a> <span class="hint-i">${d.up ? 'tải lên ' : ''}${esc(d.t)}</span></li>`).join('')}${l.length > 5 ? `<li class="hint-i">và ${l.length - 5} file khác trong thư mục</li>` : ''}</ul>` : ''; };
   const out = k => `<div class="stepout" id="out-${k}"${OUT[i + ':' + k] ? '' : ' hidden'}>${OUT[i + ':' + k] || ''}</div>`;
   const stageOpts = STAGES.map((t, k) => `<option value="${k}"${k === s ? ' selected' : ''}>${t}</option>`).join('');
   const rangeOpts = RANGE_OPTS.map(o => `<option value="${o[0]}"${(c.metaRange || 'last_7d') === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('');
@@ -400,7 +400,8 @@ VIEWS.client = function (i) {
     return `<li class="step ${st[0] ? 'done' : ''}"><span class="stn" aria-hidden="true">${st[0] ? '✓' : k}</span><div class="stc">
       <div class="sth"><h4>Bước ${k}. ${f[1]}</h4><span class="pill ${st[0]}">${st[1]}</span></div>
       <p class="hint">${f[2]}</p>${extra || ''}
-      ${nDocs(f[0]) ? `<p class="stlab">File đã tạo</p>${docsIn(f[0])}` : ''}
+      ${nDocs(f[0]) ? `<p class="stlab">File trong bước này</p>${docsIn(f[0])}` : ''}
+      <div class="upl" data-drop="${f[0]}"><label class="crumb"><input type="file" multiple data-upl="${f[0]}" class="sr">⬆ Tải file từ máy lên</label><span class="hint-i">hoặc kéo thả file vào đây · tối đa 20MB mỗi file</span><span class="uplst" id="upl-${f[0]}"></span></div>
       <div class="stfoot"><span>Thư mục Drive: <span class="mono">${f[0]}</span></span>${lk(f[0]) ? `<a href="${lk(f[0])}" target="_blank" rel="noopener">Mở thư mục ↗</a>` : '<span class="hint-i">chưa có, AI sẽ tự tạo</span>'}
         <details class="flinkbox"><summary>Đổi link thư mục</summary><input class="flink" type="url" data-flink="${f[0]}" value="${esc(lk(f[0]))}" placeholder="Dán link thư mục Google Drive (để trống thì AI tự tạo)" aria-label="Link thư mục ${f[1]}"></details></div>
     </div></li>`; };
@@ -717,6 +718,31 @@ document.addEventListener('submit', e => {
   AI.call('calSave', body).then(() => { toast('Đã lưu vào Google Calendar.'); CAL.edit = null; calLoad(true); })
     .catch(err => { toast(err.message); wait(btn, false); });
 });
+
+/* ===== Tải file từ máy lên thư mục Drive của một bước ===== */
+const MAX_UP = 20 * 1024 * 1024;
+const readB64 = file => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1] || ''); fr.onerror = () => no(new Error('Không đọc được file ' + file.name)); fr.readAsDataURL(file); });
+async function uploadFiles(sub, files) {
+  const ci = cur.c, c = CLIENTS[ci]; if (!c || !files.length) return;
+  const st = () => $('upl-' + sub);
+  let done = 0;
+  for (const file of files) {
+    if (file.size > MAX_UP) { toast(`"${file.name}" lớn hơn 20MB, hãy tải trực tiếp lên Google Drive.`); continue; }
+    if (st()) st().textContent = `Đang tải ${file.name} (${done + 1}/${files.length})...`;
+    try {
+      const d = await AI.call('upload', { client: c.n, sub, name: file.name, mime: file.type, data: await readB64(file), ...dirs(c, sub) });
+      applyFolders(c, d.folders);
+      c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url, sub, up: true });
+      saveData(); done++;
+    } catch (err) { toast(file.name + ': ' + err.message); }
+  }
+  if (done) toast(`Đã tải ${done} file lên thư mục ${sub} của ${c.n}.`);
+  if (cur.c === ci) render(cur, false);
+}
+document.addEventListener('change', e => { const sub = e.target.dataset && e.target.dataset.upl; if (sub) { uploadFiles(sub, [...e.target.files]); e.target.value = ''; } });
+document.addEventListener('dragover', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
+document.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
+document.addEventListener('drop', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); z.classList.remove('over'); uploadFiles(z.dataset.drop, [...e.dataTransfer.files]); });
 
 /* ===== Quy trình theo thư mục khách ===== */
 async function runStep(kind) {

@@ -473,3 +473,10 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .calform textarea, .calform input[type=time] { background: var(--paper); border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; font: 600 14px var(--font-body); }
 .calform .dayf { display: none; } .calform.allday .dayf { display: grid; } .calform.allday .timef { display: none; }
 .hint.err { color: var(--pin); }
+/* Tải file lên từng bước */
+.upl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; border: 2px dashed var(--line); border-radius: 12px; padding: 8px 10px; }
+.upl.over { border-color: var(--frame); background: var(--okbg); }
+.upl label.crumb { cursor: pointer; }
+.upl label.crumb:focus-within { outline: 2px solid var(--frame); }
+.uplst { flex-basis: 100%; font-size: 13px; font-weight: 700; color: var(--title); }
+.uplst:empty { display: none; }

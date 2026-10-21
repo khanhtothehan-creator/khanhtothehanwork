@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-21c lich-han';
+const BACKEND_VERSION = '2026-10-21d tai-file';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
 // Thư mục gốc trên Drive (đổi được bằng Script property ROOT_NAME)
@@ -39,6 +39,7 @@ function doPost(e) {
     if (req.action === 'plan') return out(plan(req));
     if (req.action === 'metaPull') return out(metaPull(req));
     if (req.action === 'report') return out(report(req));
+    if (req.action === 'upload') return out(upload(req));
     // Google Calendar
     if (req.action === 'calList') return out(calList(req));
     if (req.action === 'calSave') return out(calSave(req));
@@ -519,6 +520,17 @@ function report(req) {
     [new Date(), client, req.meta && req.meta.account ? req.meta.account.id : 'số liệu dán tay', req.meta && req.meta.account ? req.meta.account.range_label : '',
       req.meta && req.meta.account ? req.meta.account.spend : '', req.meta && req.meta.account ? req.meta.account.results : '', doc.url]);
   return { ok: true, provider: used, text, check, doc, sheet: sheetUrl(), folders: folders.links };
+}
+
+/* ===== Tải file từ máy lên thư mục của một bước (VD 01_Brief) ===== */
+function upload(req) {
+  const name = String(req.name || 'file').replace(/[\\/]/g, '-').slice(0, 200);
+  if (!req.data) throw new Error('File trống.');
+  if (CLIENT_SUBS.indexOf(req.sub) < 0) throw new Error('Không rõ thư mục cần lưu.');
+  const folders = clientFolders(req, String(req.client || 'Khách'), req.sub);
+  const blob = Utilities.newBlob(Utilities.base64Decode(String(req.data)), req.mime || 'application/octet-stream', name);
+  const f = folders.target.createFile(blob);
+  return { ok: true, doc: { url: f.getUrl(), title: f.getName() }, folders: folders.links };
 }
 
 /* ===== Google Calendar (lịch chính của tài khoản chạy script) ===== */
