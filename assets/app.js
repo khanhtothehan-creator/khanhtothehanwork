@@ -223,10 +223,8 @@ const VIEWS = {
     const t0 = new Date(); t0.setHours(0, 0, 0, 0);
     const left = c => { const d = Math.round((new Date(c.to) - t0) / 864e5); return d < 0 ? 'đã kết thúc' : `còn ${d} ngày`; };
     const calRows = CLIENTS.map(c => `<tr><td><b>${esc(c.n)}</b></td><td>${esc(c.goal || '')}</td><td class="num">${fmt(c.bud)}</td><td>${dm(c.from)} - ${dm(c.to)} <span class="hint-i">(${c.s < 3 ? 'chưa bắt đầu' : c.to ? left(c) : 'chưa có ngày'})</span></td></tr>`).join('');
-    const clOpts = `<option value="">Khách mới (chưa có thư mục)</option>` + CLIENTS.map((c, i) => `<option value="${i}"${SEL.consultCl === String(i) ? ' selected' : ''}>${esc(c.n)}</option>`).join('');
-    const allAds = CLIENTS.flatMap((c, ci) => (c.ads || []).map((a, ai) => adRow(ci, ai, true))).join('');
     return `
-    <div class="block"><h3>Khách hàng</h3><p class="hint">Mỗi khách một thư mục riêng. Bấm vào thư mục để mở hồ sơ của khách đó.</p>
+    <div class="block"><h3>Khách hàng</h3><p class="hint">Mỗi khách một thư mục riêng. Bấm vào thư mục để mở hồ sơ: brief → tư vấn → kế hoạch → số liệu Meta → báo cáo.</p>
       <div class="seg" role="group" aria-label="Chế độ xem"><button type="button" data-tab="all" aria-pressed="true">Tất cả</button><button type="button" data-tab="cal" aria-pressed="false">Check lịch</button></div>
       <div id="tab-all" class="fgrid">${folders}</div>
       <form id="clForm" class="clform" hidden>
@@ -246,19 +244,6 @@ const VIEWS = {
         <div class="row"><button class="btn" type="submit">Tạo thư mục</button><button class="crumb" type="button" id="clCancel">Huỷ</button></div>
       </form>
       <div id="tab-cal" class="tablewrap" hidden><table><thead><tr><th>Tên</th><th>Mục tiêu</th><th class="num">Ngân sách</th><th>Thời gian thực hiện</th></tr></thead><tbody>${calRows}</tbody></table></div></div>
-    <div class="block"><h3>Phân tích brief với AI<span class="tag">AI agent</span></h3><p class="hint">Dán brief của khách, AI phân tích và viết bản tư vấn kèm báo giá. File Google Docs được lưu vào thư mục 02_Tu-van của khách (hoặc thư mục Drive của khách) và ghi vào Google Sheet.</p>
-      <div class="intake">
-        <label for="consultCl">Khách</label>
-        <select id="consultCl" data-mk="consultCl">${clOpts}</select>
-        <label for="brief">Brief + yêu cầu của khách</label>
-        <textarea id="brief" rows="6" placeholder="Dán brief của khách vào đây: sản phẩm, mục tiêu, ngân sách, thời gian, khu vực, khách hàng mục tiêu...">${esc(SEL.brief || '')}</textarea>
-        <label for="mode">Cách chạy</label>
-        <select id="mode" data-mk="mode"><option value="multi"${SEL.mode !== 'fast' ? ' selected' : ''}>Đa tác tử: 5 agent phối hợp (kỹ hơn, 1-3 phút)</option><option value="fast"${SEL.mode === 'fast' ? ' selected' : ''}>Nhanh: 1 agent (khoảng 30 giây)</option></select>
-        <div class="row"><button type="button" class="btn" id="sum">Gửi AI phân tích</button><button type="button" class="crumb" id="aiSet">Cài đặt AI</button></div>
-        <div id="sumOut" hidden></div>
-      </div></div>
-    <div class="block"><h3>Sổ ads Meta</h3><p class="hint">Tất cả ads của các khách. Bấm tên ads để mở trên Meta, bấm <b>Phân tích</b> để AI tạo file phân tích và cập nhật Google Sheet. Thêm ads trong hồ sơ từng khách.</p>
-      <div class="adlist">${allAds || '<p class="hint">Chưa có ads nào. Mở hồ sơ một khách và bấm "+ Thêm ads".</p>'}</div></div>
     <div class="block"><h3>Tính phí quản lý</h3><p class="hint">Phí của bạn là 10-20% ngân sách ads của khách.</p>
       <div class="calc">
         <label for="bud">Ngân sách ads của khách (đ/tháng)</label>
@@ -267,7 +252,9 @@ const VIEWS = {
         <input type="range" id="pct" min="10" max="20" step="1" value="15">
         <p class="out">Phí: <span id="fee"></span></p>
       </div></div>
-    ${agentsBlock('ag', AGENTS, 'Chế độ đa tác tử: Tiếp nhận → Chiến lược → Nội dung + Tracking (song song) → Tổng hợp. Phân tích ads: Báo cáo → Nội dung + Kiểm duyệt. Chọn model cho từng agent; Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}`;
+    <details class="aiset"><summary>⚙️ Cài đặt AI và model của từng agent</summary>
+      <div class="row"><button type="button" class="btn" id="aiSet">Nối backend AI (Apps Script)</button></div>
+      ${agentsBlock('ag', AGENTS, 'Brief: Tiếp nhận → Chiến lược → Nội dung + Tracking → Tổng hợp. Kế hoạch: agent Kế hoạch. Báo cáo: Báo cáo + Kiểm duyệt. Chọn Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}</details>`;
   },
   zh() {
     return `
@@ -564,39 +551,6 @@ async function summarizeMulti(c, brief, outEl, extra) {
   } catch (err) { set('th', 'fail', `<span class="hint-i">${esc(err.message)}</span>`); throw err; }
 }
 
-async function summarize() {
-  const brief = $('brief').value.trim(), ci = $('consultCl').value;
-  if (!brief) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
-  let c = ci === '' ? null : CLIENTS[+ci];
-  if (!c) {
-    // Khách mới: tạo hồ sơ + thư mục trước, để file tư vấn lưu đúng thư mục của khách
-    const name = (prompt('Tên khách mới (sẽ tạo hồ sơ và thư mục Drive cho khách này):', '') || '').trim();
-    if (!name) return;
-    c = { n: name, s: 0, note: 'Brief vừa nhận', goal: '', bud: 0, from: '', to: '', drive: '', links: {} };
-    CLIENTS.push(c); saveData();
-    SEL.consultCl = String(CLIENTS.length - 1);
-    const sel = $('consultCl'); sel.add(new Option(name, SEL.consultCl, true, true));
-  }
-  const btn = $('sum'), outEl = $('sumOut');
-  const multi = $('mode').value !== 'fast';
-  wait(btn, true, multi ? 'Các agent đang làm việc... (1-3 phút)' : 'AI đang phân tích... (khoảng 1 phút)');
-  try {
-    const d = multi ? await summarizeMulti(c, brief, outEl)
-      : await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', ...dirs(c, '02_Tu-van') });
-    applyFolders(c, d.folders); addDoc(c, d, '02_Tu-van'); saveData();
-    const slug = '#/ads/' + slugify(c.n);
-    SEL.brief = '';
-    if (!$('sumOut')) return; // đã chuyển trang
-    outEl.hidden = false;
-    const html = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(c.links['02_Tu-van'] || c.drive)}" target="_blank" rel="noopener">Thư mục 02_Tu-van ↗</a><a class="crumb" href="${slug}">Hồ sơ ${esc(c.n)}</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
-      <p class="hint" style="margin:0">Đã lưu vào thư mục Drive của ${esc(c.n)}. Mở hồ sơ khách để xem lại bất cứ lúc nào.</p>
-      <div class="mdout">${md(d.text)}</div>
-      <p class="hint" style="margin:0">Đây là bản nháp của AI. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.${multi ? ' File có thêm phụ lục nội bộ: câu cần hỏi khách, toàn bộ mẫu nội dung, checklist tracking.' : ''}</p></div>`;
-    if (multi) outEl.querySelector('.pfinal').innerHTML = html; else outEl.innerHTML = html;
-    toast('Đã tạo file tư vấn.');
-  } catch (err) { toast(err.message + (multi ? ' Bấm lại "Gửi AI phân tích" để chạy tiếp từ bước lỗi.' : '')); }
-  finally { wait(btn, false); }
-}
 
 /* ===== Quy trình theo thư mục khách ===== */
 async function runStep(kind) {
@@ -718,7 +672,6 @@ $('todayBtn').addEventListener('click', () => { go({ m: null, c: null }); $('not
 $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
-  if (e.target.closest('#sum')) summarize();
   const run = e.target.closest('[data-run]'); if (run) runStep(run.dataset.run);
   if (e.target.closest('#aiSet')) { if (AI.setup(true)) AI.call('ping', {}).then(d => toast('Đã kết nối backend, đang dùng ' + d.provider + '.' + (d.meta ? '' : ' Chưa có META_TOKEN: dán số liệu tay khi phân tích.'))).catch(err => toast(err.message)); }
   const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }

@@ -397,3 +397,6 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .stepout:empty { display: none; }
 .flinkbox summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--soft); }
 .step .tablewrap td .hint-i { font-size: 12px; }
+.aiset { background: var(--card); border: 2px dashed var(--line); border-radius: 16px; padding: 10px 14px; }
+.aiset > summary { cursor: pointer; font: 800 15px var(--font-display); color: var(--title); }
+.aiset .row { display: flex; gap: 8px; margin: 10px 0; }
