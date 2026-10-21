@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-21 quy-trinh-00-05';
+const BACKEND_VERSION = '2026-10-21b quy-trinh-00-05';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
 
@@ -80,17 +80,19 @@ function gemini(system, user, schema) {
   let res = geminiRetry(model, body, key);
   // Tên model đổi theo thời gian: không tìm thấy thì tự chọn bản Flash đang có
   if (res.code === 404) { model = geminiModels(key)[0]; PROPS.setProperty('GEMINI_MODEL', model); res = geminiRetry(model, body, key); }
-  // Model đang quá tải: thử lần lượt các model Flash khác
-  if (res.code === 503 || res.code === 500) {
-    for (const m of geminiModels(key).filter(x => x !== model).slice(0, 4)) {
-      res = geminiRetry(m, body, key);
-      if (res.code === 200 || res.code === 400) { model = m; break; }
+  // Model quá tải (503) hoặc hết lượt miễn phí của riêng model đó (429): thử lần lượt các model Flash khác
+  if (res.code === 503 || res.code === 500 || res.code === 429) {
+    const first = res;
+    for (const m of geminiModels(key).filter(x => x !== model).slice(0, 5)) {
+      const r2 = geminiRetry(m, body, key);
+      if (r2.code === 200 || r2.code === 400) { res = r2; model = m; PROPS.setProperty('GEMINI_MODEL', m); break; }
     }
+    if (res.code !== 200 && res.code !== 400) res = first;
   }
   // Schema không được hỗ trợ: thử lại, chỉ yêu cầu trả JSON
   if (res.code === 400 && schema) { delete body.generationConfig.responseSchema; res = geminiFetch(model, body, key); }
   const data = res.data;
-  if (res.code === 429) throw new Error('Gemini đang giới hạn lượt dùng miễn phí. Đợi 1 phút (hoặc sang ngày mai nếu hết lượt trong ngày) rồi thử lại.');
+  if (res.code === 429) throw new Error('Gemini hết lượt miễn phí ở mọi model Flash. Đợi 1 phút (hoặc sang ngày mai nếu hết lượt trong ngày) rồi thử lại. Google báo: ' + ((data.error && data.error.message) || '').slice(0, 160));
   if (res.code === 503 || res.code === 500) throw new Error('Gemini đang quá tải. Đợi vài phút rồi thử lại.');
   if (res.code !== 200) throw new Error('Gemini báo lỗi ' + res.code + ': ' + ((data.error && data.error.message) || '').slice(0, 200));
   if (data.promptFeedback && data.promptFeedback.blockReason) throw new Error('Gemini từ chối nội dung này (' + data.promptFeedback.blockReason + ').');
