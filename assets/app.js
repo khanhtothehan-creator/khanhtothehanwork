@@ -59,6 +59,7 @@ const MODULES = [
   { id: 'assistant', slug: 'tro-ly', name: 'Trợ lý chung', title: 'Trợ lý chung', sub: 'Hỏi gì cũng được, trợ lý chuyển đúng mục.', desc: ['Hỏi gì cũng được', 'tự chuyển đúng mục'], w: { x: 650, y: 455 }, n: { x: 355, y: 645 }, art: 'tower', badge: 0 },
   // Chỉ có trên menu, không vẽ trên bản đồ
   { id: 'lich', slug: 'lich', name: 'Lịch', title: 'Lịch làm việc', sub: 'Lịch Google Calendar theo từng ngày. Bấm vào một sự kiện để sửa, bấm "+ Thêm" để tạo mới.', nomap: true, badge: 0 },
+  { id: 'caidat', slug: 'cai-dat', name: 'Cài đặt', title: 'Cài đặt', sub: 'Trang kỹ thuật, không có trên menu. Mở bằng địa chỉ …/#/cai-dat.', nomap: true, hidden: true, badge: 0 },
   { id: 'todo', slug: 'viec-can-lam', name: 'Việc cần làm', title: 'Việc cần làm', sub: 'Tick vào ô khi làm xong. Bấm vào chữ hoặc ngày để sửa.', nomap: true, badge: 0 }
 ];
 
@@ -257,13 +258,7 @@ const VIEWS = {
         <input type="range" id="pct" min="10" max="20" step="1" value="15">
         <p class="out">Phí: <span id="fee"></span></p>
       </div></div>
-    <details class="aiset"><summary>⚙️ Cài đặt AI và model của từng agent</summary>
-      <p class="hint">Đang nối: <span class="mono" id="aiUrl">${esc(AI.short())}</span>${AI.url() ? ` · <a href="${esc(AI.url())}" target="_blank" rel="noopener">Mở link backend ↗</a> (thấy "version": "2026-10-21e xoa-file" là bản mới)` : ''}</p>
-      <div class="row"><button type="button" class="btn" id="aiSet">Nối backend AI (Apps Script)</button><button type="button" class="crumb" id="aiCheck">Kiểm tra backend</button></div>
-      <p class="hint" id="aiInfo"></p>
-      ${AI.url() ? `<div class="share"><b>Mở trên điện thoại hoặc máy khác</b><p class="hint">Gửi link này sang máy kia (Zalo, Messenger...), mở ra và nhập mã truy cập là có đủ dữ liệu. Link không chứa mã.</p>
-        <div class="row"><input type="text" readonly id="aiShareUrl" value="${esc(location.origin + location.pathname + '#ket-noi=' + encodeURIComponent(AI.url()))}" aria-label="Link kết nối"><button type="button" class="btn" id="aiShare">Copy link</button></div></div>` : ''}
-      ${agentsBlock('ag', AGENTS, 'Brief: Tiếp nhận → Chiến lược → Nội dung + Tracking → Tổng hợp. Kế hoạch: agent Kế hoạch. Báo cáo: Báo cáo + Kiểm duyệt. Chọn Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}</details>`;
+`;
   },
   zh() {
     return `
@@ -482,7 +477,7 @@ const now = new Date();
 const dow = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][now.getDay()];
 const total = MODULES.reduce((s, m) => s + m.badge, 0);
 const waiting = CLIENTS.filter(c => c.s <= 2).length, unsent = SCHOOLS.length;
-const open = MODULES.filter(m => !m.locked);
+const open = MODULES.filter(m => !m.locked && !m.hidden);
 
 $('tabbar').innerHTML = `<span class="logo" aria-hidden="true">${stk('logo', 'lg')}</span>` +
   [{ id: 'home', name: 'Trang chủ' }, ...open.map(m => ({ id: m.id, name: m.name }))]
@@ -572,11 +567,18 @@ function checkBackend() {
   const info = $('aiInfo'), u = $('aiUrl'); if (u) u.textContent = AI.short();
   if (info) info.textContent = 'Đang kiểm tra...';
   AI.call('ping', {}).then(d => {
-    const msg = d.version ? `✓ Backend bản ${d.version}, AI: ${d.provider}, token Meta: ${d.meta ? 'đã có' : 'chưa có'}.`
-      : '✕ Link này đang chạy bản code CŨ. Trong Apps Script: Triển khai → Tùy chọn triển khai mới → Ứng dụng web → Triển khai, copy link mới rồi bấm "Nối backend AI" và dán link đó.';
+    const msg = d.version ? `✓ Máy chủ bản ${d.version}, AI: ${d.provider}, token Meta: ${d.meta ? 'đã có' : 'chưa có'}.`
+      : '✕ Máy chủ đang chạy bản code CŨ. Trong Apps Script: dán code mới, lưu, rồi Triển khai → Quản lý các lần triển khai → ✏️ → Phiên bản mới.';
     if (info) info.textContent = msg; toast(msg);
   }).catch(err => { if (info) info.textContent = err.message; toast(err.message); });
 }
+
+/* ===== Trang cài đặt ẩn (…/#/cai-dat): máy chủ, đăng xuất, model của agent ===== */
+VIEWS.caidat = () => `<div class="iso"><b>Máy chủ (Google Apps Script)</b>
+    <p class="hint">Link: <span class="mono" id="aiUrl">${esc(AI.short())}</span> · ${AI.fromConfig() ? 'ghi sẵn trong config.js' : 'lưu trong trình duyệt này'}${AI.url() ? ` · <a href="${esc(AI.url())}" target="_blank" rel="noopener">Mở link ↗</a>` : ''}</p>
+    <div class="row"><button type="button" class="btn" id="aiCheck">Kiểm tra máy chủ</button>${AI.fromConfig() ? '' : '<button type="button" class="crumb" id="aiUrlSet">Đổi link máy chủ</button>'}<button type="button" class="crumb danger" id="aiLogout">Đăng xuất trên máy này</button></div>
+    <p class="hint" id="aiInfo"></p></div>
+  ${agentsBlock('ag', AGENTS, 'Chọn model cho từng agent. Claude cần khoá CLAUDE_API_KEY trong Apps Script, chưa có thì tự dùng Gemini.')}`;
 
 /* ===== Việc cần làm (lưu trong trình duyệt) ===== */
 let TODOS = (() => { try { return JSON.parse(localStorage.getItem('kws.todo')) || []; } catch (e) { return []; } })();
@@ -659,7 +661,7 @@ function paintCal() {
   const el = $('calWrap'); if (!el) return;
   const s0 = CAL.start, s6 = addDays(s0, 6), today = ymd(new Date());
   const gLink = `https://calendar.google.com/calendar/r/week/${s0.getFullYear()}/${s0.getMonth() + 1}/${s0.getDate()}`;
-  if (CAL.err === 'need') { el.innerHTML = `<div class="iso"><b>Chưa nối Google Calendar</b><p>Lịch đọc qua backend Apps Script (cùng backend với AI). Nối backend một lần là xem và sửa được lịch ở đây.</p><div class="row"><button class="btn" type="button" data-calsetup>Nối backend</button><a class="crumb" href="${gLink}" target="_blank" rel="noopener">Mở Google Calendar ↗</a></div></div>`; return; }
+  if (CAL.err === 'need') { el.innerHTML = `<div class="iso"><b>${AI.url() ? 'Cần đăng nhập để xem lịch' : 'Web chưa được nối máy chủ'}</b><p>Lịch Google Calendar được đọc qua máy chủ của web.</p><div class="row">${AI.url() ? '<button class="btn" type="button" data-login>Nhập mã truy cập</button>' : ''}<a class="crumb" href="${gLink}" target="_blank" rel="noopener">Mở Google Calendar ↗</a></div></div>`; return; }
   const days = Array.from({ length: 7 }, (_, i) => addDays(s0, i));
   const col = d => { const k = ymd(d), evs = CAL.events.map((e, i) => [e, i]).filter(x => onDay(x[0], k)).sort((a, b) => evSort(a[0], b[0]));
     return `<div class="cday${k === today ? ' today' : ''}"><div class="cdh"><b>${DOW[d.getDay()]}</b><span>${d.getDate()}/${d.getMonth() + 1}</span></div>
@@ -689,14 +691,14 @@ function calEditor() {
 function paintMini() {
   const el = $('calMini'); if (!el) return;
   const list = CAL.today;
-  el.innerHTML = `<div class="mh"><b>Lịch hôm nay</b><a href="#/lich" class="hint-i">Mở lịch →</a></div>` + (!AI.ready() ? '<p class="hint-i">Chưa nối Google Calendar. Bấm "Mở lịch" để nối.</p>'
+  el.innerHTML = `<div class="mh"><b>Lịch hôm nay</b><a href="#/lich" class="hint-i">Mở lịch →</a></div>` + (!AI.ready() ? '<p class="hint-i">Đăng nhập để xem lịch hôm nay.</p>'
     : list === null ? '<p class="hint-i">Đang tải...</p>'
     : list.length ? `<ul>${list.map(e => `<li><span>${e.allDay ? 'Cả ngày' : hm(e.start)}</span> ${esc(e.title || '(Không có tiêu đề)')}</li>`).join('')}</ul>` : '<p class="hint-i">Hôm nay không có lịch.</p>');
 }
 document.addEventListener('click', e => {
   const nav = e.target.closest('[data-calnav]');
   if (nav) { const v = nav.dataset.calnav; if (v === 'r') return calLoad(true); CAL.start = v === '0' ? mondayOf(new Date()) : addDays(CAL.start, +v); CAL.edit = null; return calLoad(false); }
-  if (e.target.closest('[data-calsetup]')) { if (AI.setup(true)) { CAL.err = ''; calLoad(true); } return; }
+  if (e.target.closest('[data-login]')) { showLogin(); return; }
   const ev = e.target.closest('[data-evi]'); if (ev) { CAL.edit = { ...CAL.events[+ev.dataset.evi] }; paintCal(); $('calForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const nw = e.target.closest('[data-evnew]'); if (nw) { const d = nw.dataset.evnew; CAL.edit = { title: '', allDay: false, start: new Date(d + 'T09:00').toISOString(), end: new Date(d + 'T10:00').toISOString() }; paintCal(); $('calForm').title.focus(); return; }
   if (e.target.closest('#calCancel')) { CAL.edit = null; paintCal(); }
@@ -887,8 +889,8 @@ $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   const run = e.target.closest('[data-run]'); if (run) runStep(run.dataset.run);
-  if (e.target.closest('#aiSet')) { if (AI.setup(true)) { checkBackend(); syncFromDrive(); } }
-  if (e.target.closest('#aiShare')) { const i = $('aiShareUrl'); i.select(); (navigator.clipboard ? navigator.clipboard.writeText(i.value) : Promise.reject()).then(() => toast('Đã copy link. Gửi sang điện thoại rồi mở ra.')).catch(() => { document.execCommand('copy'); toast('Đã copy link.'); }); }
+  if (e.target.closest('#aiUrlSet')) { const u = prompt('Dán link Web app của Apps Script (đuôi /exec):', AI.url()); if (u !== null) { if (AI.setUrl(u)) { render(cur, false); checkBackend(); } else toast('Link phải bắt đầu bằng https://script.google.com/'); } }
+  if (e.target.closest('#aiLogout') && confirm('Đăng xuất trên máy này? Dữ liệu vẫn còn trên Google Drive.')) { AI.logout(); toast('Đã đăng xuất.'); showLogin(); }
   if (e.target.closest('#aiCheck')) checkBackend();
   const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }
   const ad = e.target.closest('[data-addel]');
@@ -1046,14 +1048,35 @@ function fromHash() {
 window.addEventListener('hashchange', () => { const v = fromHash(); if (v.m !== cur.m || v.c !== cur.c) go(v); });
 
 renderMap();
-let joined = false;
+// Link kết nối cũ (…#ket-noi=…): chỉ dùng khi config.js chưa có link máy chủ
 if (location.hash.startsWith('#ket-noi=')) {
-  joined = AI.setUrl(decodeURIComponent(location.hash.slice(9)));
+  if (!AI.fromConfig()) AI.setUrl(decodeURIComponent(location.hash.slice(9)));
   history.replaceState(null, '', location.pathname);
 }
 hist.push(fromHash()); hi = 0; render(hist[0], false);
 refreshDriveNote();
 if (Drive.connected()) pullData().catch(() => {});
 refreshCounts(); renderHomeTodo(); paintMini();
+/* ===== Màn hình nhập mã: hiện khi máy này chưa đăng nhập ===== */
+function showLogin() {
+  if (!AI.url()) return;
+  const el = $('login'); el.hidden = false; $('loginErr').textContent = '';
+  setTimeout(() => $('loginForm').code.focus(), 50);
+}
+window.addEventListener('kws-login', showLogin);
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, btn = f.querySelector('[type=submit]');
+  wait(btn, true, 'Đang mở...');
+  try {
+    await AI.login(f.code.value);
+    $('login').hidden = true; f.reset();
+    toast('Đã đăng nhập. Đang tải dữ liệu...');
+    await syncFromDrive(true); CAL.err = ''; calLoad(true); paintMini();
+  } catch (err) { $('loginErr').textContent = err.message === 'Mã truy cập không đúng.' ? 'Mã không đúng, thử lại nhé.' : err.message; }
+  finally { wait(btn, false); }
+});
+$('loginSkip').addEventListener('click', () => { $('login').hidden = true; });
+
 if (AI.ready()) { calLoad(false); syncFromDrive(); }
-else if (joined) setTimeout(() => { if (AI.setup(false)) { toast('Đã kết nối. Đang tải dữ liệu...'); syncFromDrive(); calLoad(true); } }, 400);
+else if (AI.url()) showLogin();

@@ -37,10 +37,12 @@ Không gửi khoá cho ai và không dán vào code trên GitHub.
 
 "Anyone" nghĩa là ai có link đều gửi yêu cầu được, nhưng không có `APP_PASSCODE` đúng thì script từ chối.
 
-## Bước 4: Nối website
-1. Mở website → **Job chạy ads** → khung **Phân tích brief với Claude** → bấm **Cài đặt AI**.
-2. Dán Web app URL, rồi nhập `APP_PASSCODE`. Thấy thông báo "Đã kết nối backend" là xong.
-   (Mỗi trình duyệt/máy nhập một lần.)
+## Bước 4: Ghi link máy chủ vào website (làm một lần)
+1. Trên GitHub mở file `config.js` → bấm ✏️.
+2. Dán **Web app URL** vào giữa hai dấu nháy: `BACKEND_URL: 'https://script.google.com/macros/s/.../exec'` → **Commit changes**.
+3. Mở web ở bất kỳ máy nào: lần đầu hiện màn hình **nhập mã** (`APP_PASSCODE`), nhập xong máy đó nhớ luôn.
+   Mọi dữ liệu (khách, link, file, việc cần làm) tự lưu vào `han-workspace-data.json` trên Drive, máy nào mở cũng thấy.
+4. Trang kỹ thuật (kiểm tra máy chủ, đăng xuất, chọn model agent) ở địa chỉ ẩn: `…/khanhtothehanwork/#/cai-dat`.
 
 ## Bước 5 (tuỳ chọn): Cho phép tự lấy số liệu Meta Ads
 Chưa làm bước này vẫn phân tích được: mở ads trong hồ sơ khách → **Số liệu dán tay và ghi chú** → dán số liệu từ Ads Manager.

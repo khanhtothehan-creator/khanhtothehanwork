@@ -489,3 +489,13 @@ input[type=range] { width: 100%; accent-color: var(--title); }
 .share b { font: 800 15px var(--font-display); color: var(--title); }
 .share .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .share input { flex: 1 1 220px; min-width: 0; background: var(--paper); border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+/* Màn hình nhập mã */
+.login { position: fixed; inset: 0; z-index: 50; background: rgba(60, 80, 50, .35); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 16px; }
+.loginbox { width: min(380px, 100%); background: var(--paper); border: 3px solid var(--frame); border-radius: 22px; padding: 22px 20px 16px; display: grid; gap: 10px; justify-items: center; text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, .18); }
+.loginbox h2 { margin: 0; font: 800 26px var(--font-display); color: var(--pink-ink); }
+.loginbox p { margin: 0; font-weight: 600; color: var(--soft); }
+.loginbox input { width: 100%; box-sizing: border-box; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; font: 700 16px var(--font-body); text-align: center; }
+.loginbox input:focus { outline: none; border-color: var(--frame); }
+.loginbox .btn { width: 100%; padding: 9px 18px 11px; font-size: 17px; }
+.loginbox .err { color: var(--pin); font-weight: 700; min-height: 1em; }
+.linkbtn { border: 0; background: none; color: var(--soft); font-weight: 700; text-decoration: underline; cursor: pointer; }

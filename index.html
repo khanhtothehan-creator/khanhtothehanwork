@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Itim&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<link rel="stylesheet" href="assets/style.css?v=20261021i">
+<link rel="stylesheet" href="assets/style.css?v=20261021j">
 </head>
 <body>
 
@@ -65,10 +65,21 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="config.js?v=20261021i"></script>
+<div class="login" id="login" hidden>
+  <form class="loginbox" id="loginForm">
+    <img src="assets/img/avatar.webp" width="96" height="85" alt="">
+    <h2>Han's Work Space</h2>
+    <p>Nhập mã truy cập để mở dữ liệu của bạn. Mỗi máy chỉ cần nhập một lần.</p>
+    <input type="password" name="code" autocomplete="current-password" placeholder="Mã truy cập" aria-label="Mã truy cập" required>
+    <button class="btn" type="submit">Mở</button>
+    <p class="err" id="loginErr" role="alert"></p>
+    <button class="linkbtn" type="button" id="loginSkip">Để sau</button>
+  </form>
+</div>
+<script src="config.js?v=20261021j"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="assets/drive.js?v=20261021i"></script>
-<script src="assets/ai.js?v=20261021i"></script>
-<script src="assets/app.js?v=20261021i"></script>
+<script src="assets/drive.js?v=20261021j"></script>
+<script src="assets/ai.js?v=20261021j"></script>
+<script src="assets/app.js?v=20261021j"></script>
 </body>
 </html>
