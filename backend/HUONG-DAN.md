@@ -1,4 +1,4 @@
-# Cài đặt AI agent (Claude + Meta Ads + Google Docs/Sheets)
+# Cài đặt AI agent (Gemini miễn phí hoặc Claude + Meta Ads + Google Docs/Sheets)
 
 Website trên GitHub Pages là trang tĩnh, không được chứa khoá bí mật. Vì vậy phần AI chạy trên
 **Google Apps Script** (miễn phí, chạy bằng tài khoản Google của bạn). Website gửi brief hoặc link ads
@@ -10,9 +10,12 @@ Website  →  Apps Script (giữ khoá)  →  Claude API
                                     →  Google Docs (file phân tích) + Google Sheet (bảng tổng hợp)
 ```
 
-## Bước 1: Lấy khoá Claude API
-1. Vào https://platform.claude.com, đăng nhập rồi nạp credit (**Billing**). API tính tiền riêng, gói Claude Pro không dùng được cho API.
-2. Vào **API Keys → Create Key**, đặt tên `khanh-workspace`, copy khoá (bắt đầu bằng `sk-ant-`). Không gửi khoá này cho ai và không dán vào code trên GitHub.
+## Bước 1: Lấy khoá AI
+- **Gemini (miễn phí):** vào https://aistudio.google.com/apikey → **Create API key** → copy khoá (bắt đầu bằng `AIza`).
+  Gói miễn phí có giới hạn lượt dùng mỗi phút/ngày, và Google có thể dùng nội dung gửi lên để cải thiện sản phẩm: tránh dán thông tin nhạy cảm của khách.
+- **Claude (trả phí, tuỳ chọn):** https://platform.claude.com → nạp credit → **API Keys → Create Key** (bắt đầu bằng `sk-ant-`).
+
+Không gửi khoá cho ai và không dán vào code trên GitHub.
 
 ## Bước 2: Tạo Apps Script
 1. Vào https://script.google.com → **New project** (Dự án mới), đặt tên `Khanh Workspace Backend`.
@@ -20,12 +23,12 @@ Website  →  Apps Script (giữ khoá)  →  Claude API
 3. Bấm ⚙️ **Project Settings** (Cài đặt dự án) → kéo xuống **Script properties** → **Add script property**, thêm:
    | Property | Value |
    |---|---|
-   | `CLAUDE_API_KEY` | khoá `sk-ant-...` ở bước 1 |
+   | `GEMINI_API_KEY` | khoá `AIza...` ở bước 1 (hoặc `CLAUDE_API_KEY` nếu dùng Claude) |
    | `APP_PASSCODE` | một mã tự đặt, ví dụ `hoahong2026` (website sẽ hỏi mã này) |
    | `META_TOKEN` | để sau (bước 5), chưa có thì bỏ qua |
 4. Quay lại **Editor** (<>), chọn hàm `kiemTra` ở thanh trên → bấm ▶ **Run**.
    Google hỏi quyền → **Review permissions** → chọn tài khoản → **Advanced** → **Go to ... (unsafe)** → **Allow**.
-   Xem **Execution log**: thấy "Đã kết nối" và link Google Sheet là xong.
+   Xem **Execution log**: thấy "AI đang dùng: gemini", câu trả lời "Đã kết nối" và link Google Sheet là xong.
 
 ## Bước 3: Đưa Apps Script lên làm Web app
 1. Bấm **Deploy → New deployment** → bánh răng ⚙️ → chọn **Web app**.
@@ -59,6 +62,8 @@ Muốn tự lấy số liệu:
 ## Cài đặt thêm (Script properties, không bắt buộc)
 | Property | Mặc định | Ý nghĩa |
 |---|---|---|
+| `AI_PROVIDER` | tự chọn | `gemini` hoặc `claude` (khi có cả hai khoá) |
+| `GEMINI_MODEL` | `gemini-flash-latest` | Model Gemini; nếu không có, script tự chọn bản Flash đang hoạt động |
 | `CLAUDE_MODEL` | `claude-opus-5-5` | Model Claude |
 | `CLAUDE_EFFORT` | `medium` | `low` nhanh và rẻ hơn, `high` kỹ hơn nhưng lâu hơn |
 | `META_API_VERSION` | `v23.0` | Phiên bản Meta Graph API |
@@ -69,6 +74,7 @@ Sau khi dán code mới: **Deploy → Manage deployments** → ✏️ → **Vers
 
 ## Lỗi thường gặp
 - **"Sai mã truy cập"**: bấm lại, nhập đúng `APP_PASSCODE`.
+- **"Gemini báo lỗi 400/403"**: khoá Gemini sai hoặc chưa bật. **"Gemini đang giới hạn lượt dùng"**: đợi 1 phút hoặc sang ngày mai.
 - **"Claude báo lỗi 401"**: khoá API sai. **"402" / credit**: nạp thêm credit.
 - **Chờ lâu rồi báo lỗi / Timeout**: đặt `CLAUDE_EFFORT` = `low`.
 - **"Không lấy được số liệu Meta"**: token hết hạn hoặc system user chưa được gán tài khoản quảng cáo đó.

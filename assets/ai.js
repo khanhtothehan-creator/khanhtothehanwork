@@ -1,4 +1,4 @@
-/* ===== Gọi backend Google Apps Script (Claude + Meta + Google Docs/Sheets) =====
+/* ===== Gọi backend Google Apps Script (Gemini/Claude + Meta + Google Docs/Sheets) =====
    Địa chỉ backend lấy từ config.js (BACKEND_URL) hoặc từ nút "Cài đặt AI" (lưu trong trình duyệt).
    Mã truy cập (APP_PASSCODE) chỉ lưu trong trình duyệt, không nằm trong code trên GitHub. */
 const AI = (() => {

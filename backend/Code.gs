@@ -1,13 +1,16 @@
 /* ===== Khanh's Work Space: backend chạy trên Google Apps Script =====
    Website gửi yêu cầu tới đây, script này:
-   - gọi Claude để phân tích brief và viết tư vấn,
-   - lấy số liệu ads từ Meta Marketing API, gọi Claude phân tích,
+   - gọi AI (Gemini miễn phí, hoặc Claude) để phân tích brief và viết tư vấn,
+   - lấy số liệu ads từ Meta Marketing API, gọi AI phân tích,
    - tạo file Google Docs trong thư mục Drive của khách và ghi một dòng vào Google Sheet.
    Khoá bí mật nằm trong Project Settings → Script properties, không nằm trong code:
-     CLAUDE_API_KEY  (bắt buộc)  khoá API từ platform.claude.com
+     GEMINI_API_KEY  (cần một trong hai) khoá miễn phí từ aistudio.google.com
+     CLAUDE_API_KEY  (cần một trong hai) khoá trả phí từ platform.claude.com
+     AI_PROVIDER     (tuỳ chọn)  gemini | claude, mặc định dùng loại có khoá (ưu tiên gemini)
      APP_PASSCODE    (bắt buộc)  mã bạn tự đặt, website phải gửi đúng mã này
      META_TOKEN      (tuỳ chọn)  access token Meta có quyền ads_read
      SHEET_ID        (tự tạo)    bỏ trống, lần chạy đầu script tự tạo bảng tính
+     GEMINI_MODEL    (tuỳ chọn)  mặc định gemini-flash-latest (bản Flash mới nhất, có gói miễn phí)
      CLAUDE_MODEL    (tuỳ chọn)  mặc định claude-opus-5-5
      CLAUDE_EFFORT   (tuỳ chọn)  low | medium | high, mặc định medium
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
@@ -20,7 +23,7 @@ function doPost(e) {
   try { req = JSON.parse(e.postData.contents); } catch (err) { return out({ ok: false, error: 'Yêu cầu không hợp lệ.' }); }
   if (!prop('APP_PASSCODE') || req.key !== prop('APP_PASSCODE')) return out({ ok: false, error: 'unauthorized' });
   try {
-    if (req.action === 'ping') return out({ ok: true, meta: !!prop('META_TOKEN'), claude: !!prop('CLAUDE_API_KEY') });
+    if (req.action === 'ping') return out({ ok: true, meta: !!prop('META_TOKEN'), provider: provider() });
     if (req.action === 'consult') return out(consult(req));
     if (req.action === 'analyzeAd') return out(analyzeAd(req));
     return out({ ok: false, error: 'Không rõ yêu cầu: ' + req.action });
@@ -31,7 +34,77 @@ function doPost(e) {
 function doGet() { return out({ ok: true, app: "Khanh's Work Space backend" }); }
 const out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 
-/* ===== Claude ===== */
+/* ===== AI: chọn Gemini hoặc Claude ===== */
+function provider() {
+  const p = String(prop('AI_PROVIDER', '')).toLowerCase();
+  if (p === 'gemini' || p === 'claude') return p;
+  return prop('GEMINI_API_KEY') ? 'gemini' : prop('CLAUDE_API_KEY') ? 'claude' : 'chưa có khoá';
+}
+function ai(system, user, schema) {
+  const p = provider();
+  if (p === 'gemini') return gemini(system, user, schema);
+  if (p === 'claude') return claude(system, user, schema);
+  throw new Error('Chưa có GEMINI_API_KEY hoặc CLAUDE_API_KEY trong Script properties.');
+}
+
+/* ===== Gemini (Google AI Studio, có gói miễn phí) ===== */
+const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/';
+function gemini(system, user, schema) {
+  const key = prop('GEMINI_API_KEY');
+  if (!key) throw new Error('Chưa có GEMINI_API_KEY trong Script properties.');
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+    generationConfig: { maxOutputTokens: 8192 }
+  };
+  if (schema) { body.generationConfig.responseMimeType = 'application/json'; body.generationConfig.responseSchema = toGeminiSchema(schema); }
+  let model = prop('GEMINI_MODEL', 'gemini-flash-latest');
+  let res = geminiFetch(model, body, key);
+  // Tên model đổi theo thời gian: không tìm thấy thì tự chọn bản Flash đang có
+  if (res.code === 404) { model = pickGeminiModel(key); PROPS.setProperty('GEMINI_MODEL', model); res = geminiFetch(model, body, key); }
+  // Schema không được hỗ trợ: thử lại, chỉ yêu cầu trả JSON
+  if (res.code === 400 && schema) { delete body.generationConfig.responseSchema; res = geminiFetch(model, body, key); }
+  const data = res.data;
+  if (res.code === 429) throw new Error('Gemini đang giới hạn lượt dùng miễn phí. Đợi 1 phút (hoặc sang ngày mai nếu hết lượt trong ngày) rồi thử lại.');
+  if (res.code !== 200) throw new Error('Gemini báo lỗi ' + res.code + ': ' + ((data.error && data.error.message) || '').slice(0, 200));
+  if (data.promptFeedback && data.promptFeedback.blockReason) throw new Error('Gemini từ chối nội dung này (' + data.promptFeedback.blockReason + ').');
+  const cand = (data.candidates || [])[0] || {};
+  const text = ((cand.content && cand.content.parts) || []).filter(x => x.text && !x.thought).map(x => x.text).join('').trim();
+  if (cand.finishReason === 'MAX_TOKENS') throw new Error('Câu trả lời quá dài, bị cắt giữa chừng. Hãy rút gọn đầu vào rồi thử lại.');
+  if (!text) throw new Error('Gemini không trả lời (' + (cand.finishReason || 'không rõ lý do') + ').');
+  return schema ? parseJson(text) : text;
+}
+function geminiFetch(model, body, key) {
+  const res = UrlFetchApp.fetch(GEMINI_API + 'models/' + model + ':generateContent', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': key }, payload: JSON.stringify(body)
+  });
+  return { code: res.getResponseCode(), data: JSON.parse(res.getContentText() || '{}') };
+}
+function pickGeminiModel(key) {
+  const res = UrlFetchApp.fetch(GEMINI_API + 'models?pageSize=200', { headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
+  const list = (JSON.parse(res.getContentText() || '{}').models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map(m => m.name.replace('models/', ''))
+    .filter(n => /flash/.test(n) && !/lite|image|tts|audio|live|preview|exp/.test(n))
+    .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }));
+  if (!list.length) throw new Error('Không tìm thấy model Gemini Flash nào. Đặt GEMINI_MODEL trong Script properties.');
+  return list[0];
+}
+// JSON Schema → định dạng schema của Gemini (bỏ các trường Gemini không nhận)
+function toGeminiSchema(s) {
+  const o = {};
+  ['type', 'description', 'enum', 'required'].forEach(k => { if (s[k] !== undefined) o[k] = s[k]; });
+  if (s.properties) { o.properties = {}; Object.keys(s.properties).forEach(k => { o.properties[k] = toGeminiSchema(s.properties[k]); }); }
+  if (s.items) o.items = toGeminiSchema(s.items);
+  return o;
+}
+function parseJson(text) {
+  const t = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  try { return JSON.parse(t); } catch (err) { throw new Error('AI trả về dữ liệu không đúng dạng. Hãy thử lại.'); }
+}
+
+/* ===== Claude (trả phí) ===== */
 function claude(system, user, schema) {
   const key = prop('CLAUDE_API_KEY');
   if (!key) throw new Error('Chưa có CLAUDE_API_KEY trong Script properties.');
@@ -56,7 +129,7 @@ function claude(system, user, schema) {
   if (data.stop_reason === 'refusal') throw new Error('Claude từ chối yêu cầu này. Hãy sửa nội dung rồi thử lại.');
   const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
   if (data.stop_reason === 'max_tokens') throw new Error('Câu trả lời quá dài, bị cắt giữa chừng. Hãy rút gọn đầu vào rồi thử lại.');
-  return schema ? JSON.parse(text) : text;
+  return schema ? parseJson(text) : text;
 }
 
 /* ===== 1. Brief → tư vấn ===== */
@@ -76,7 +149,7 @@ function consult(req) {
   const brief = String(req.brief || '').trim();
   if (!brief) throw new Error('Brief đang trống.');
   const client = String(req.client || 'Khách mới');
-  const text = claude(CONSULT_SYSTEM, `Tên khách: ${client}\n\nBrief và yêu cầu của khách:\n${brief}`);
+  const text = ai(CONSULT_SYSTEM, `Tên khách: ${client}\n\nBrief và yêu cầu của khách:\n${brief}`);
   const title = `Tư vấn - ${client} - ${today()}`;
   const doc = writeDoc(title, text, folderFrom(req.folder, 'Tư vấn'));
   logRow('Tư vấn', ['Thời gian', 'Khách', 'Brief (rút gọn)', 'File tư vấn'],
@@ -120,7 +193,7 @@ function analyzeAd(req) {
     khach: client, ten_ads: req.name || (meta && meta.ad && meta.ad.name) || '', ad_id: adId, link: req.url || '',
     du_lieu_meta: meta, so_lieu_khanh_dan: req.metrics || '', ghi_chu_cua_khanh: req.note || ''
   };
-  const r = claude(AD_SYSTEM, 'Dữ liệu quảng cáo (JSON):\n' + JSON.stringify(input, null, 1), AD_SCHEMA);
+  const r = fillAd(ai(AD_SYSTEM, 'Dữ liệu quảng cáo (JSON):\n' + JSON.stringify(input, null, 1) + '\n\nTrả về JSON với các trường: ' + Object.keys(AD_SCHEMA.properties).join(', ') + '. danh_gia là một trong: ' + AD_SCHEMA.properties.danh_gia.enum.join(', ') + '.', AD_SCHEMA));
   const name = input.ten_ads || ('Ads ' + adId);
   const head = `**Khách:** ${client}\n**Ads:** ${name}\n**Link:** ${req.url || ''}\n**Đánh giá:** ${r.danh_gia} - ${r.tom_tat}\n`;
   const doc = writeDoc(`Phân tích ads - ${client} - ${name} - ${today()}`, head + '\n' + r.bao_cao_markdown, folderFrom(req.folder, 'Phân tích ads'));
@@ -128,6 +201,14 @@ function analyzeAd(req) {
     ['Thời gian', 'Khách', 'Tên ads', 'ID ads', 'Đánh giá', 'Chi tiêu', 'Hiển thị', 'CTR', 'CPM', 'Kết quả', 'Chi phí/kết quả', 'Tóm tắt', 'Đề xuất', 'File phân tích', 'Link ads'],
     [new Date(), client, name, adId, r.danh_gia, r.chi_tieu, r.hien_thi, r.ctr, r.cpm, r.ket_qua, r.chi_phi_moi_ket_qua, r.tom_tat, r.de_xuat.join('\n'), doc.url, req.url || '']);
   return { ok: true, result: r, doc, sheet: sheetUrl(), metaNote, name };
+}
+
+// Bổ sung trường còn thiếu nếu AI trả về không đủ
+function fillAd(r) {
+  r = r || {};
+  Object.keys(AD_SCHEMA.properties).forEach(k => { if (r[k] === undefined || r[k] === null) r[k] = k === 'de_xuat' ? [] : 'chưa có'; });
+  if (!Array.isArray(r.de_xuat)) r.de_xuat = [String(r.de_xuat)];
+  return r;
 }
 
 // Nhận link Ads Manager (selected_ad_ids=..., ad_id=..., /ads/123...) hoặc ID ads dán trực tiếp
@@ -223,7 +304,8 @@ function logRow(tab, header, row) {
 
 /* ===== Chạy thử trong trình soạn thảo (bấm ▶ Run) ===== */
 function kiemTra() {
-  Logger.log('Claude: ' + claude('Trả lời ngắn gọn bằng tiếng Việt.', 'Chào bạn, hãy trả lời "Đã kết nối".'));
+  Logger.log('AI đang dùng: ' + provider() + (provider() === 'gemini' ? ' (' + prop('GEMINI_MODEL', 'gemini-flash-latest') + ')' : ''));
+  Logger.log('Trả lời: ' + ai('Trả lời ngắn gọn bằng tiếng Việt.', 'Chào bạn, hãy trả lời "Đã kết nối".'));
   Logger.log('Google Sheet: ' + sheetUrl());
   Logger.log('META_TOKEN: ' + (prop('META_TOKEN') ? 'đã có' : 'chưa có'));
 }

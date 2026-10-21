@@ -242,16 +242,16 @@ const VIEWS = {
         <div class="row"><button class="btn" type="submit">Tạo thư mục</button><button class="crumb" type="button" id="clCancel">Huỷ</button></div>
       </form>
       <div id="tab-cal" class="tablewrap" hidden><table><thead><tr><th>Tên</th><th>Mục tiêu</th><th class="num">Ngân sách</th><th>Thời gian thực hiện</th></tr></thead><tbody>${calRows}</tbody></table></div></div>
-    <div class="block"><h3>Phân tích brief với Claude<span class="tag">AI agent</span></h3><p class="hint">Dán brief của khách, Claude phân tích và viết bản tư vấn kèm báo giá. File Google Docs được lưu vào thư mục 02_Tu-van của khách (hoặc thư mục Drive của khách) và ghi vào Google Sheet.</p>
+    <div class="block"><h3>Phân tích brief với AI<span class="tag">AI agent</span></h3><p class="hint">Dán brief của khách, AI phân tích và viết bản tư vấn kèm báo giá. File Google Docs được lưu vào thư mục 02_Tu-van của khách (hoặc thư mục Drive của khách) và ghi vào Google Sheet.</p>
       <div class="intake">
         <label for="consultCl">Khách</label>
         <select id="consultCl" data-mk="consultCl">${clOpts}</select>
         <label for="brief">Brief + yêu cầu của khách</label>
         <textarea id="brief" rows="6" placeholder="Dán brief của khách vào đây: sản phẩm, mục tiêu, ngân sách, thời gian, khu vực, khách hàng mục tiêu...">${esc(SEL.brief || '')}</textarea>
-        <div class="row"><button type="button" class="btn" id="sum">Gửi Claude phân tích</button><button type="button" class="crumb" id="aiSet">Cài đặt AI</button></div>
+        <div class="row"><button type="button" class="btn" id="sum">Gửi AI phân tích</button><button type="button" class="crumb" id="aiSet">Cài đặt AI</button></div>
         <div id="sumOut" hidden></div>
       </div></div>
-    <div class="block"><h3>Sổ ads Meta</h3><p class="hint">Tất cả ads của các khách. Bấm tên ads để mở trên Meta, bấm <b>Phân tích</b> để Claude tạo file phân tích và cập nhật Google Sheet. Thêm ads trong hồ sơ từng khách.</p>
+    <div class="block"><h3>Sổ ads Meta</h3><p class="hint">Tất cả ads của các khách. Bấm tên ads để mở trên Meta, bấm <b>Phân tích</b> để AI tạo file phân tích và cập nhật Google Sheet. Thêm ads trong hồ sơ từng khách.</p>
       <div class="adlist">${allAds || '<p class="hint">Chưa có ads nào. Mở hồ sơ một khách và bấm "+ Thêm ads".</p>'}</div></div>
     <div class="block"><h3>Tính phí quản lý</h3><p class="hint">Phí của bạn là 10-20% ngân sách ads của khách.</p>
       <div class="calc">
@@ -349,7 +349,7 @@ function adRow(ci, ai, showClient) {
       <span class="hint-i">${esc(L.t)} · <a href="${link(L.doc)}" target="_blank" rel="noopener">File phân tích ↗</a>${L.sheet ? ` · <a href="${link(L.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a>` : ''}</span></div>` : ''}
     ${showClient ? '' : `<details class="admore"><summary>Số liệu dán tay và ghi chú (khi chưa nối Meta)</summary>
       <textarea rows="3" data-admet="${ai}" placeholder="Dán số liệu từ Ads Manager: chi tiêu, hiển thị, CTR, CPM, kết quả, chi phí/kết quả...">${esc(a.metrics || '')}</textarea>
-      <textarea rows="2" data-adnote="${ai}" placeholder="Ghi chú cho Claude, VD: khách muốn giảm chi phí tin nhắn">${esc(a.note || '')}</textarea></details>`}
+      <textarea rows="2" data-adnote="${ai}" placeholder="Ghi chú cho AI, VD: khách muốn giảm chi phí tin nhắn">${esc(a.note || '')}</textarea></details>`}
     <div class="adout" id="adout-${ci}-${ai}" hidden></div></div>`;
 }
 
@@ -389,7 +389,7 @@ VIEWS.client = function (i) {
       <div class="row"><input type="url" id="clDrive" value="${esc(link(c.drive))}" placeholder="https://drive.google.com/drive/folders/..." aria-label="Link thư mục Drive của ${n}"><button class="btn" type="button" id="clDriveSave">${link(c.drive) ? 'Lưu link mới' : 'Lưu link'}</button></div>
       <p id="drvStat" class="hint">${driveStatus(c)}</p>
       ${Drive.configured() ? `<div class="drvact"><button class="btn" type="button" id="drvSync" data-sync="${i}">${Drive.connected() ? 'Đồng bộ thư mục Drive' : 'Kết nối và tạo thư mục trên Drive'}</button></div>` : ''}</div>
-    <div class="block"><h3>Ads Meta của ${n}</h3><p class="hint">Dán link ads từ Ads Manager. Bấm tên ads để mở ads đó, bấm <b>Phân tích</b> để Claude tự tạo file phân tích (lưu vào 05_Bao-cao) và cập nhật Google Sheet.</p>
+    <div class="block"><h3>Ads Meta của ${n}</h3><p class="hint">Dán link ads từ Ads Manager. Bấm tên ads để mở ads đó, bấm <b>Phân tích</b> để AI tự tạo file phân tích (lưu vào 05_Bao-cao) và cập nhật Google Sheet.</p>
       <div class="adlist">${(c.ads || []).map((a, ai) => adRow(i, ai, false)).join('') || '<p class="hint">Chưa có ads nào.</p>'}</div>
       <form id="adForm" class="clform">
         <h4>+ Thêm ads</h4>
@@ -397,7 +397,7 @@ VIEWS.client = function (i) {
         <label>Link ads (Ads Manager)<input type="url" name="url" required placeholder="https://adsmanager.facebook.com/...selected_ad_ids=..."></label></div>
         <div class="row"><button class="btn" type="submit">Thêm ads</button></div>
       </form></div>
-    ${(c.docs || []).length ? `<div class="block"><h3>Tài liệu Claude đã tạo</h3><ul class="docs">${c.docs.slice(0, 20).map(d => `<li><span class="hint-i">${esc(d.t)}</span> <a href="${link(d.url)}" target="_blank" rel="noopener">${esc(d.title)} ↗</a></li>`).join('')}</ul></div>` : ''}
+    ${(c.docs || []).length ? `<div class="block"><h3>Tài liệu AI đã tạo</h3><ul class="docs">${c.docs.slice(0, 20).map(d => `<li><span class="hint-i">${esc(d.t)}</span> <a href="${link(d.url)}" target="_blank" rel="noopener">${esc(d.title)} ↗</a></li>`).join('')}</ul></div>` : ''}
     <div class="iso"><b>Thông tin khách</b>
       <div class="two"><label>Giai đoạn<select id="clStage">${stageOpts}</select></label><label>Ghi chú<input type="text" id="clNote" value="${esc(c.note || '')}" maxlength="120"></label></div>
       <p class="hint">Agent làm việc cho ${n} chỉ đọc và ghi trong 7 thư mục dưới đây. Dữ liệu của khách khác không lẫn vào.</p>
@@ -483,7 +483,7 @@ async function summarize() {
   const brief = $('brief').value.trim(), ci = $('consultCl').value, c = ci === '' ? null : CLIENTS[+ci];
   if (!brief) { toast('Hãy nhập brief và yêu cầu của khách trước.'); return; }
   const btn = $('sum'), outEl = $('sumOut');
-  wait(btn, true, 'Claude đang phân tích... (khoảng 1 phút)');
+  wait(btn, true, 'AI đang phân tích... (khoảng 1 phút)');
   try {
     const d = await AI.call('consult', { brief, client: c ? c.n : 'Khách mới', folder: folderOf(c, '02_Tu-van') });
     if (c) { c.docs = c.docs || []; c.docs.unshift({ t: new Date().toLocaleString('vi-VN'), title: d.doc.title, url: d.doc.url }); saveData(); }
@@ -492,7 +492,7 @@ async function summarize() {
     outEl.hidden = false;
     outEl.innerHTML = `<div class="sum"><div class="row"><a class="btn" href="${link(d.doc.url)}" target="_blank" rel="noopener">Mở file tư vấn (Google Docs) ↗</a><a class="crumb" href="${link(d.sheet)}" target="_blank" rel="noopener">Google Sheet ↗</a></div>
       <div class="mdout">${md(d.text)}</div>
-      <p class="hint" style="margin:0">Đây là bản nháp của Claude. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.</p></div>`;
+      <p class="hint" style="margin:0">Đây là bản nháp của AI. Bạn sửa trong Google Docs và duyệt trước khi gửi khách.</p></div>`;
     toast('Đã tạo file tư vấn.');
   } catch (err) { toast(err.message); }
   finally { wait(btn, false); }
@@ -502,7 +502,7 @@ async function analyzeAd(ci, ai) {
   const c = CLIENTS[ci], a = c && c.ads && c.ads[ai]; if (!a) return;
   const btn = document.querySelector(`[data-analyze="${ci}:${ai}"]`);
   wait(btn, true, 'Đang phân tích...');
-  const box = $(`adout-${ci}-${ai}`); if (box) { box.hidden = false; box.innerHTML = '<p class="hint">Claude đang lấy số liệu và phân tích, khoảng 1 phút...</p>'; }
+  const box = $(`adout-${ci}-${ai}`); if (box) { box.hidden = false; box.innerHTML = '<p class="hint">AI đang lấy số liệu và phân tích, khoảng 1 phút...</p>'; }
   try {
     const d = await AI.call('analyzeAd', { client: c.n, name: a.name, url: a.url, metrics: a.metrics || '', note: a.note || '', folder: folderOf(c, '05_Bao-cao') });
     const r = d.result, t = new Date().toLocaleString('vi-VN');
@@ -542,7 +542,7 @@ $('modBody').addEventListener('click', e => {
   const c = e.target.closest('[data-client]'); if (c) { go({ m: cur.m, c: +c.dataset.client }); return; }
   const t = e.target.closest('[data-tab]'); if (t) { setTab(t.dataset.tab); return; }
   if (e.target.closest('#sum')) summarize();
-  if (e.target.closest('#aiSet')) { if (AI.setup(true)) AI.call('ping', {}).then(d => toast('Đã kết nối backend.' + (d.meta ? '' : ' Chưa có META_TOKEN: dán số liệu tay khi phân tích.'))).catch(err => toast(err.message)); }
+  if (e.target.closest('#aiSet')) { if (AI.setup(true)) AI.call('ping', {}).then(d => toast('Đã kết nối backend, đang dùng ' + d.provider + '.' + (d.meta ? '' : ' Chưa có META_TOKEN: dán số liệu tay khi phân tích.'))).catch(err => toast(err.message)); }
   const an = e.target.closest('[data-analyze]'); if (an) { const [ci, ai] = an.dataset.analyze.split(':').map(Number); analyzeAd(ci, ai); }
   const ad = e.target.closest('[data-addel]');
   if (ad && confirm('Xoá ads này khỏi danh sách? File phân tích đã tạo vẫn giữ trên Drive.')) { CLIENTS[cur.c].ads.splice(+ad.dataset.addel, 1); saveData(); render(cur, false); }
