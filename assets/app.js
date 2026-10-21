@@ -258,7 +258,7 @@ const VIEWS = {
         <p class="out">Phí: <span id="fee"></span></p>
       </div></div>
     <details class="aiset"><summary>⚙️ Cài đặt AI và model của từng agent</summary>
-      <p class="hint">Đang nối: <span class="mono" id="aiUrl">${esc(AI.short())}</span></p>
+      <p class="hint">Đang nối: <span class="mono" id="aiUrl">${esc(AI.short())}</span>${AI.url() ? ` · <a href="${esc(AI.url())}" target="_blank" rel="noopener">Mở link backend ↗</a> (thấy "version": "2026-10-21e xoa-file" là bản mới)` : ''}</p>
       <div class="row"><button type="button" class="btn" id="aiSet">Nối backend AI (Apps Script)</button><button type="button" class="crumb" id="aiCheck">Kiểm tra backend</button></div>
       <p class="hint" id="aiInfo"></p>
       ${agentsBlock('ag', AGENTS, 'Brief: Tiếp nhận → Chiến lược → Nội dung + Tracking → Tổng hợp. Kế hoạch: agent Kế hoạch. Báo cáo: Báo cáo + Kiểm duyệt. Chọn Claude cần khoá CLAUDE_API_KEY, chưa có thì tự dùng Gemini.')}</details>`;
