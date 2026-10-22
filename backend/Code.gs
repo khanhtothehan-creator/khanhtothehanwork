@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-22a khong-ma';
+const BACKEND_VERSION = '2026-10-22b kho-may-chu';
 // Khoá chung giữa website và backend (trùng WEB_KEY trong config.js). Đổi cả hai chỗ nếu muốn khoá lại.
 const WEB_KEY = 'han-ws-7f3k9q2m';
 const PROPS = PropertiesService.getScriptProperties();
@@ -541,28 +541,52 @@ function upload(req) {
   return { ok: true, doc: { url: f.getUrl(), title: f.getName() }, folders: folders.links };
 }
 
-/* ===== Dữ liệu của website lưu trên Drive để mở máy nào cũng giống nhau ===== */
-const DATA_NAME = 'han-workspace-data.json';
-function dataFile() {
-  const root = childFolder(DriveApp.getRootFolder(), ROOT_NAME()), it = root.getFilesByName(DATA_NAME);
-  return { root, file: it.hasNext() ? it.next() : null };
+/* ===== Kho dữ liệu của website: lưu ngay trong máy chủ Apps Script (không dùng Google Drive) =====
+   Dữ liệu (khách, link, danh sách file, việc cần làm...) được nén gzip + base64 rồi chia nhỏ
+   lưu vào User properties của script (mỗi ô tối đa 9KB, cả kho tối đa 500KB, sau nén chứa được khoảng 1-2MB dữ liệu).
+   Lần đầu: nếu còn file han-workspace-data.json cũ trên Drive thì chuyển sang kho này rồi cho file vào Thùng rác. */
+const DATA_NAME = 'han-workspace-data.json', CHUNK = 8000, MAX_STORE = 450000;
+const store = () => PropertiesService.getUserProperties();
+function storeRead() {
+  const st = store(), n = +st.getProperty('D_N') || 0;
+  if (!n) return null;
+  let b64 = '';
+  for (let i = 0; i < n; i++) b64 += st.getProperty('D_' + i) || '';
+  const blob = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip'));
+  return JSON.parse(blob.getDataAsString('UTF-8'));
+}
+function storeWrite(d) {
+  const b64 = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(d), 'application/json')).getBytes());
+  if (b64.length > MAX_STORE) throw new Error('Dữ liệu quá lớn để lưu trong máy chủ (' + Math.round(b64.length / 1000) + 'KB). Hãy xoá bớt khách hoặc file cũ.');
+  const st = store(), old = +st.getProperty('D_N') || 0, parts = b64.match(/[\s\S]{1,8000}/g) || [''], o = { D_N: String(parts.length), D_T: String(d.t || 0) };
+  parts.forEach((p, i) => { o['D_' + i] = p; });
+  st.setProperties(o);
+  for (let i = parts.length; i < old; i++) st.deleteProperty('D_' + i);
+  return b64.length;
+}
+// Chuyển dữ liệu cũ từ file trên Drive sang kho (chỉ chạy khi kho còn trống)
+function migrateFromDrive() {
+  try {
+    const it = childFolder(DriveApp.getRootFolder(), ROOT_NAME()).getFilesByName(DATA_NAME);
+    if (!it.hasNext()) return null;
+    const f = it.next(), d = JSON.parse(f.getBlob().getDataAsString() || 'null');
+    if (d && Array.isArray(d.clients)) { storeWrite(d); f.setTrashed(true); return d; }
+  } catch (err) { /* không có file cũ */ }
+  return null;
 }
 function dataGet() {
-  const f = dataFile().file;
-  return { ok: true, data: f ? JSON.parse(f.getBlob().getDataAsString() || 'null') : null };
+  return { ok: true, data: storeRead() || migrateFromDrive(), where: 'server' };
 }
-// Bản mới hơn thắng: nếu trên Drive đã có bản mới hơn (máy khác vừa lưu) thì không ghi đè, trả bản đó về
+// Bản mới hơn thắng: nếu kho đã có bản mới hơn (máy khác vừa lưu) thì không ghi đè, trả bản đó về
 function dataSet(req) {
   const d = req.data;
   if (!d || !Array.isArray(d.clients)) throw new Error('Dữ liệu không hợp lệ.');
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
-    const { root, file } = dataFile();
-    const cur = file ? JSON.parse(file.getBlob().getDataAsString() || 'null') : null;
+    const cur = storeRead() || migrateFromDrive();
     if (cur && (cur.t || 0) > (d.t || 0)) return { ok: true, stale: true, data: cur };
-    const text = JSON.stringify(d);
-    if (file) file.setContent(text); else root.createFile(DATA_NAME, text, 'application/json');
-    return { ok: true, t: d.t };
+    const size = storeWrite(d);
+    return { ok: true, t: d.t, size };
   } finally { lock.releaseLock(); }
 }
 
@@ -745,4 +769,5 @@ function kiemTra() {
   Logger.log('Google Sheet: ' + sheetUrl());
   Logger.log('META_TOKEN: ' + (prop('META_TOKEN') ? 'đã có' : 'chưa có'));
   Logger.log('Google Calendar: ' + cal().getName() + ' (' + cal().getTimeZone() + ')');
+  const d = storeRead(); Logger.log('Kho dữ liệu máy chủ: ' + (d ? d.clients.length + ' khách, ' + (d.todos || []).length + ' việc' : 'còn trống'));
 }

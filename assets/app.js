@@ -994,8 +994,8 @@ function refreshDriveNote() {
 }
 function saveData() { touchData(); refreshCounts(); }
 
-/* ===== Đồng bộ dữ liệu giữa các máy (qua backend, lưu file trên Google Drive) =====
-   Mỗi lần sửa: lưu trong trình duyệt + gửi lên Drive sau 1,2 giây. Mở web: lấy bản mới hơn. */
+/* ===== Đồng bộ dữ liệu giữa các máy (lưu trong kho của máy chủ Apps Script, không dùng Drive) =====
+   Mỗi lần sửa: lưu trong trình duyệt + gửi lên máy chủ sau 1,2 giây. Mở web: lấy bản mới hơn. */
 let pushTimer = null;
 function touchData() {
   dataTime = Date.now();
@@ -1017,19 +1017,19 @@ function syncStat(ok, text) {
 }
 const hhmm = () => new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 async function pushData() {
-  syncStat(null, '☁ Đang lưu lên Drive...');
-  try { const r = await AI.call('dataSet', { data: snapshot() }); if (r.stale && r.data) applyRemote(r.data); syncStat(true, '☁ Đã lưu lên Drive lúc ' + hhmm()); }
-  catch (err) { syncStat(false, '⚠ Chưa lưu lên Drive: ' + err.message); }
+  syncStat(null, '☁ Đang lưu...');
+  try { const r = await AI.call('dataSet', { data: snapshot() }); if (r.stale && r.data) applyRemote(r.data); syncStat(true, '☁ Đã lưu lên máy chủ lúc ' + hhmm()); }
+  catch (err) { syncStat(false, '⚠ Chưa lưu lên máy chủ: ' + err.message); }
 }
 async function syncFromDrive(quiet) {
   if (!AI.ready()) { syncStat(false, '⚠ Chưa nối máy chủ, dữ liệu chỉ lưu trên máy này'); return; }
   syncStat(null, '☁ Đang đồng bộ...');
   try {
     const d = (await AI.call('dataGet', {})).data;
-    if (d && Array.isArray(d.clients) && (d.t || 0) > dataTime) { applyRemote(d); if (!quiet) toast('Đã tải dữ liệu mới nhất từ Google Drive.'); syncStat(true, '☁ Đã đồng bộ lúc ' + hhmm()); }
+    if (d && Array.isArray(d.clients) && (d.t || 0) > dataTime) { applyRemote(d); if (!quiet) toast('Đã tải dữ liệu mới nhất từ máy chủ.'); syncStat(true, '☁ Đã đồng bộ lúc ' + hhmm()); }
     // Chỉ đẩy lên khi máy này có dữ liệu thật (dataTime > 0), để máy mới không ghi đè bằng dữ liệu mẫu
     else if (dataTime && (!d || (d.t || 0) < dataTime)) await pushData();
-    else syncStat(true, d ? '☁ Đã đồng bộ lúc ' + hhmm() : '☁ Drive chưa có dữ liệu, mở web trên máy đang có dữ liệu để đưa lên');
+    else syncStat(true, d ? '☁ Đã đồng bộ lúc ' + hhmm() : '☁ Máy chủ chưa có dữ liệu, mở web trên máy đang có dữ liệu để đưa lên');
   } catch (err) { syncStat(false, '⚠ Chưa đồng bộ: ' + err.message); }
 }
 // Quay lại tab (VD vừa sửa trên điện thoại) thì lấy bản mới
