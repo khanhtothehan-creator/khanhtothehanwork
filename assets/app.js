@@ -14,8 +14,8 @@ const stk = (k, cls, alt) => `<img class="${cls}" src="${STK[k][0]}" width="${ST
 
 /* ===== Dữ liệu ví dụ ===== */
 const STAGES = ['Mới', 'Đã gửi tư vấn', 'Đang sửa', 'Đã chốt', 'Đang setup', 'Đang chạy', 'Đang tối ưu'];
-/* Danh sách khách ban đầu. Khách tạo trên web (nút "+ Tạo thư mục khách") được lưu trong trình duyệt,
-   và lưu lên Drive (file khanh-workspace-data.json) khi đã kết nối Google Drive.
+/* Danh sách khách mẫu khi máy chưa có dữ liệu. Khách tạo trên web được lưu trong trình duyệt
+   và trong kho dữ liệu của máy chủ, nên máy nào mở cũng thấy.
    drive = link thư mục Drive của khách, links = link từng thư mục con */
 const CLIENTS = [
   { n: 'Shop mẫu A', s: 0, note: 'Brief vừa nhận', goal: 'Tin nhắn', bud: 15000000, from: '2026-11-01', to: '2026-11-30', drive: '', links: {} },
