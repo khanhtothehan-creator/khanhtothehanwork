@@ -10,9 +10,11 @@ const AI = (() => {
 
   // Link trong config.js được ưu tiên (mọi máy dùng chung); link lưu trong trình duyệt chỉ dùng khi config để trống
   const url = () => CFG.BACKEND_URL || get(UK) || '';
-  const hasPass = () => !!get(PK);
+  // Có WEB_KEY trong config.js thì không cần nhập mã
+  const key = () => get(PK) || CFG.WEB_KEY || '';
+  const hasPass = () => !!key();
   const ready = () => !!url() && hasPass();
-  const needLogin = () => window.dispatchEvent(new Event('kws-login'));
+  const needLogin = () => { if (!CFG.WEB_KEY) window.dispatchEvent(new Event('kws-login')); };
 
   async function call(action, payload) {
     if (!url()) throw new Error('Web chưa được nối máy chủ.');
@@ -20,10 +22,10 @@ const AI = (() => {
     let r;
     try {
       // text/plain để trình duyệt không gửi yêu cầu kiểm tra CORS trước (Apps Script không hỗ trợ)
-      r = await fetch(url(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...payload, action, key: get(PK) }) });
+      r = await fetch(url(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...payload, action, key: key() }) });
     } catch (e) { throw new Error('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'); }
     const d = await r.json().catch(() => ({ ok: false, error: 'Máy chủ trả về dữ liệu lạ. Kiểm tra quyền truy cập Web app là "Bất kỳ ai".' }));
-    if (!d.ok && d.error === 'unauthorized') { put(PK, ''); needLogin(); throw new Error('Mã truy cập không đúng.'); }
+    if (!d.ok && d.error === 'unauthorized') { put(PK, ''); needLogin(); throw new Error(CFG.WEB_KEY ? 'Máy chủ chưa nhận khoá của web (máy chủ cần cập nhật bản mới).' : 'Mã truy cập không đúng.'); }
     // Backend chưa có chức năng này: Apps Script đang chạy bản code cũ
     if (!d.ok && /^Không rõ yêu cầu/.test(d.error || '')) throw new Error('Máy chủ đang chạy bản code cũ, cần triển khai lại Apps Script (xem trang #/cai-dat).');
     if (!d.ok) throw new Error(d.error || 'Có lỗi xảy ra.');

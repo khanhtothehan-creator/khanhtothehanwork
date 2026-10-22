@@ -563,3 +563,8 @@ input[type=range] { width: 100%; accent-color: var(--title); }
   .fx-in, .fx-swap, .fx-back, .fx-in *, .fx-swap *, .st.pop .bg, .st.pop .card, .login .loginbox { animation: none !important; }
   .st .bg, .st .card, .btn, .stc, .step .stn { transition: none !important; }
 }
+.foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.fpill.sync:empty { display: none; }
+.fpill.sync { font-size: 13px; }
+.fpill.sync.ok { color: var(--ok); }
+.fpill.sync.bad { color: var(--pin); }

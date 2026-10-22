@@ -16,7 +16,9 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-21f dong-bo';
+const BACKEND_VERSION = '2026-10-22a khong-ma';
+// Khoá chung giữa website và backend (trùng WEB_KEY trong config.js). Đổi cả hai chỗ nếu muốn khoá lại.
+const WEB_KEY = 'han-ws-7f3k9q2m';
 const PROPS = PropertiesService.getScriptProperties();
 const prop = (k, d) => PROPS.getProperty(k) || d;
 // Thư mục gốc trên Drive (đổi được bằng Script property ROOT_NAME)
@@ -25,7 +27,9 @@ const ROOT_NAME = () => prop('ROOT_NAME', "Han's Work Space");
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return out({ ok: false, error: 'Yêu cầu không hợp lệ.' }); }
-  if (!prop('APP_PASSCODE') || req.key !== prop('APP_PASSCODE')) return out({ ok: false, error: 'unauthorized' });
+  // Web gửi khoá chung WEB_KEY (ghi trong config.js) nên không phải nhập mã; APP_PASSCODE vẫn dùng được
+  const okKey = req.key && (req.key === WEB_KEY || (prop('APP_PASSCODE') && req.key === prop('APP_PASSCODE')));
+  if (!okKey) return out({ ok: false, error: 'unauthorized' });
   try {
     if (req.action === 'ping') return out({ ok: true, version: BACKEND_VERSION, meta: !!prop('META_TOKEN'), provider: provider() });
     if (req.action === 'consult') return out(consult(req));
