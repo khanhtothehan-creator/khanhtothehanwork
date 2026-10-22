@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-22b kho-may-chu';
+const BACKEND_VERSION = '2026-10-22c hop-thu';
 // Khoá chung giữa website và backend (trùng WEB_KEY trong config.js). Đổi cả hai chỗ nếu muốn khoá lại.
 const WEB_KEY = 'han-ws-7f3k9q2m';
 const PROPS = PropertiesService.getScriptProperties();
@@ -575,7 +575,72 @@ function migrateFromDrive() {
   return null;
 }
 function dataGet() {
-  return { ok: true, data: storeRead() || migrateFromDrive(), where: 'server' };
+  let data = storeRead() || migrateFromDrive(), added = null;
+  try { const r = inboxImport(data); data = r.data; added = r.added; } catch (err) { /* hộp thư lỗi thì bỏ qua */ }
+  return { ok: true, data, where: 'server', inbox: added };
+}
+
+/* ===== Hộp thư: Claude (hoặc bạn) ghi việc/lịch vào một Google Docs, web tự lấy về =====
+   Mỗi dòng sau vạch "---":
+     việc: Nội dung việc | 25/10            (ngày không bắt buộc)
+     lịch: Tiêu đề | 25/10 14:00-15:00 | Địa điểm   (không có giờ = cả ngày)
+   Dòng đã lấy được xoá khỏi hộp thư; dòng không hiểu được thì giữ nguyên, thêm "(?)". */
+const INBOX_NAME = "Han's Work Space - Hộp thư";
+const INBOX_HEAD = ['HỘP THƯ CỦA HAN\'S WORK SPACE', 'Ghi mỗi việc một dòng bên dưới vạch ---. Mở web là các dòng tự được thêm vào web rồi xoá khỏi đây.',
+  'việc: Gửi báo giá cho 5th season | 25/10', 'lịch: Họp khách 5th season | 25/10 14:00-15:00 | Zoom', '---'];
+function inboxDoc() {
+  const id = prop('INBOX_ID');
+  if (id) { try { const f = DriveApp.getFileById(id); if (!f.isTrashed()) return DocumentApp.openById(id); } catch (err) { /* tìm lại */ } }
+  const it = DriveApp.getFilesByName(INBOX_NAME);
+  while (it.hasNext()) { const f = it.next(); if (!f.isTrashed() && f.getMimeType() === MimeType.GOOGLE_DOCS) { PROPS.setProperty('INBOX_ID', f.getId()); return DocumentApp.openById(f.getId()); } }
+  const doc = DocumentApp.create(INBOX_NAME);
+  INBOX_HEAD.forEach((t, i) => i === 0 ? doc.getBody().getParagraphs()[0].setText(t) : doc.getBody().appendParagraph(t));
+  DriveApp.getFileById(doc.getId()).moveTo(childFolder(DriveApp.getRootFolder(), ROOT_NAME()));
+  PROPS.setProperty('INBOX_ID', doc.getId());
+  return doc;
+}
+// "25/10", "25/10/2026", "2026-10-25" → "2026-10-25"
+function inboxDate(s) {
+  s = String(s || '').trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${('0' + m[2]).slice(-2)}-${('0' + m[3]).slice(-2)}`;
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/))) {
+    const y = m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : Utilities.formatDate(new Date(), cal().getTimeZone(), 'yyyy');
+    return `${y}-${('0' + m[2]).slice(-2)}-${('0' + m[1]).slice(-2)}`;
+  }
+  return '';
+}
+function inboxImport(data) {
+  const doc = inboxDoc(), body = doc.getBody(), paras = body.getParagraphs();
+  let start = paras.findIndex(p => p.getText().trim() === '---');
+  if (start < 0) return { data, added: null };
+  const todos = [], events = [], done = [];
+  for (let i = start + 1; i < paras.length; i++) {
+    const t = paras[i].getText().trim(); if (!t || / \(\?\)$/.test(t)) continue;
+    const m = t.replace(/^[-•*\d.)\s]+/, '').match(/^(việc|viec|todo|lịch|lich)\s*:\s*(.+)$/i);
+    if (!m) { paras[i].setText(t + ' (?)'); continue; }
+    const parts = m[2].split('|').map(x => x.trim()), kind = /^(lịch|lich)$/i.test(m[1]) ? 'cal' : 'todo';
+    if (kind === 'todo') {
+      todos.push({ id: 'c' + Date.now().toString(36) + i, text: parts[0], due: inboxDate(parts[1]), done: false, t: Date.now() });
+      done.push(paras[i]);
+    } else {
+      const day = inboxDate(parts[1]), tm = String(parts[1] || '').match(/(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?/);
+      if (!day) { paras[i].setText(t + ' (?)'); continue; }
+      const req = { title: parts[0], location: parts[2] || '', description: 'Thêm từ Hộp thư', allDay: !tm, date: day };
+      if (tm) {
+        const tz = cal().getTimeZone(), st = Utilities.parseDate(`${day} ${tm[1]}:${tm[2]}`, tz, 'yyyy-MM-dd H:mm');
+        req.start = st.toISOString();
+        req.end = (tm[3] ? Utilities.parseDate(`${day} ${tm[3]}:${tm[4]}`, tz, 'yyyy-MM-dd H:mm') : new Date(st.getTime() + 3600e3)).toISOString();
+      }
+      calSave(req); events.push(parts[0]); done.push(paras[i]);
+    }
+  }
+  // Xoá dòng đã lấy (Google Docs không cho xoá đoạn cuối cùng nên để trống đoạn đó)
+  done.reverse().forEach(p => { try { p.removeFromParent(); } catch (err) { p.setText(''); } });
+  // Kho đã có dữ liệu: thêm việc thẳng vào kho. Kho trống: trả việc về cho web tự thêm (không tạo kho rỗng đè dữ liệu máy khác)
+  let pending = [];
+  if (todos.length && data) { data.todos = (data.todos || []).concat(todos); data.t = Date.now(); storeWrite(data); }
+  else pending = todos;
+  return { data, added: todos.length || events.length ? { todos: todos.map(x => x.text), events, pending } : null };
 }
 // Bản mới hơn thắng: nếu kho đã có bản mới hơn (máy khác vừa lưu) thì không ghi đè, trả bản đó về
 function dataSet(req) {

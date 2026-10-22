@@ -1025,11 +1025,18 @@ async function syncFromDrive(quiet) {
   if (!AI.ready()) { syncStat(false, '⚠ Chưa nối máy chủ, dữ liệu chỉ lưu trên máy này'); return; }
   syncStat(null, '☁ Đang đồng bộ...');
   try {
-    const d = (await AI.call('dataGet', {})).data;
+    const res = await AI.call('dataGet', {}), d = res.data, inbox = res.inbox;
     if (d && Array.isArray(d.clients) && (d.t || 0) > dataTime) { applyRemote(d); if (!quiet) toast('Đã tải dữ liệu mới nhất từ máy chủ.'); syncStat(true, '☁ Đã đồng bộ lúc ' + hhmm()); }
     // Chỉ đẩy lên khi máy này có dữ liệu thật (dataTime > 0), để máy mới không ghi đè bằng dữ liệu mẫu
     else if (dataTime && (!d || (d.t || 0) < dataTime)) await pushData();
     else syncStat(true, d ? '☁ Đã đồng bộ lúc ' + hhmm() : '☁ Máy chủ chưa có dữ liệu, mở web trên máy đang có dữ liệu để đưa lên');
+    // Việc/lịch mới từ Hộp thư (Google Docs "Han's Work Space - Hộp thư")
+    if (inbox) {
+      if (inbox.pending && inbox.pending.length) { TODOS = TODOS.concat(inbox.pending); saveTodos(); refreshCounts(); renderHomeTodo(); if (cur.m === 'todo') render(cur, false); }
+      const parts = [inbox.todos.length ? `${inbox.todos.length} việc` : '', inbox.events.length ? `${inbox.events.length} lịch` : ''].filter(Boolean).join(' và ');
+      toast(`Đã thêm ${parts} từ Hộp thư: ${inbox.todos.concat(inbox.events).join(', ')}`);
+      if (inbox.events.length) calLoad(true);
+    }
   } catch (err) { syncStat(false, '⚠ Chưa đồng bộ: ' + err.message); }
 }
 // Quay lại tab (VD vừa sửa trên điện thoại) thì lấy bản mới
