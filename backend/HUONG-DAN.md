@@ -17,6 +17,13 @@ Website  →  Apps Script (giữ khoá)  →  Claude API
 
 Không gửi khoá cho ai và không dán vào code trên GitHub.
 
+## Cách mới: dán bộ nạp một lần, sau này không phải dán code nữa
+Thay vì dán toàn bộ `Code.gs`, dán file **[`backend/Loader.gs`](Loader.gs)** (ngắn) vào Apps Script.
+Bộ nạp tự lấy code mới nhất từ `backend/Code.gs` trên GitHub (giữ trong bộ nhớ đệm 5 phút).
+Khi code trên GitHub được sửa, backend tự dùng bản mới, **không phải dán lại hay triển khai lại**.
+Muốn dùng ngay bản mới: chạy hàm `napLai` trong Apps Script.
+Lưu ý: ai sửa được repo GitHub này thì đổi được backend, nên chỉ cấp quyền repo cho người tin tưởng.
+
 ## Bước 2: Tạo Apps Script
 1. Vào https://script.google.com → **New project** (Dự án mới), đặt tên `Han Workspace Backend`.
 2. Xoá hết nội dung file `Code.gs` có sẵn, dán toàn bộ nội dung file [`backend/Code.gs`](Code.gs) vào, bấm 💾 lưu.
