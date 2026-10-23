@@ -1,0 +1,4 @@
+{
+  "ghi_chu": "Hộp thư của Han's Work Space. Thêm mục mới vào cuối danh sách items, mỗi mục một id khác nhau. Máy chủ Apps Script tự lấy 5 phút/lần: lịch lên Google Calendar, việc lên trang Việc cần làm. Cách ghi: xem data/README.md",
+  "items": []
+}

@@ -16,7 +16,7 @@
      META_API_VERSION (tuỳ chọn) mặc định v23.0 */
 
 // Đổi mỗi khi cập nhật code, để website biết Web app đang chạy bản nào
-const BACKEND_VERSION = '2026-10-22c hop-thu';
+const BACKEND_VERSION = '2026-10-23 hop-thu-github';
 // Khoá chung giữa website và backend (trùng WEB_KEY trong config.js). Đổi cả hai chỗ nếu muốn khoá lại.
 const WEB_KEY = 'han-ws-7f3k9q2m';
 const PROPS = PropertiesService.getScriptProperties();
@@ -47,6 +47,7 @@ function doPost(e) {
     // Đồng bộ dữ liệu web (khách, link, việc cần làm) giữa các máy
     if (req.action === 'dataGet') return out(dataGet());
     if (req.action === 'dataSet') return out(dataSet(req));
+    if (req.action === 'inboxAck') return out(inboxAck(req));
     if (req.action === 'trash') return out(trash(req));
     // Google Calendar
     if (req.action === 'calList') return out(calList(req));
@@ -57,7 +58,11 @@ function doPost(e) {
     return out({ ok: false, error: String(err.message || err) });
   }
 }
-function doGet() { return out({ ok: true, app: "Han's Work Space backend", version: BACKEND_VERSION }); }
+function doGet(e) {
+  // Trigger hẹn giờ gọi doGet (cách cài không cần dán lại bộ nạp, xem HUONG-DAN.md) thì chạy đồng bộ hộp thư
+  if (e && e.triggerUid) return dongBo();
+  return out({ ok: true, app: "Han's Work Space backend", version: BACKEND_VERSION });
+}
 const out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 
 /* ===== AI: chọn Gemini hoặc Claude ===== */
@@ -576,30 +581,40 @@ function migrateFromDrive() {
 }
 function dataGet() {
   let data = storeRead() || migrateFromDrive(), added = null;
-  try { const r = inboxImport(data); data = r.data; added = r.added; } catch (err) { /* hộp thư lỗi thì bỏ qua */ }
+  try { const r = dongBo(); data = r.data || data; added = r.added; } catch (err) { /* hộp thư lỗi thì bỏ qua, lần sau chạy lại */ }
   return { ok: true, data, where: 'server', inbox: added };
 }
 
-/* ===== Hộp thư: Claude (hoặc bạn) ghi việc/lịch vào một Google Docs, web tự lấy về =====
-   Mỗi dòng sau vạch "---":
-     việc: Nội dung việc | 25/10            (ngày không bắt buộc)
-     lịch: Tiêu đề | 25/10 14:00-15:00 | Địa điểm   (không có giờ = cả ngày)
-   Dòng đã lấy được xoá khỏi hộp thư; dòng không hiểu được thì giữ nguyên, thêm "(?)". */
-const INBOX_NAME = "Han's Work Space - Hộp thư";
-const INBOX_HEAD = ['HỘP THƯ CỦA HAN\'S WORK SPACE', 'Ghi mỗi việc một dòng bên dưới vạch ---. Mở web là các dòng tự được thêm vào web rồi xoá khỏi đây.',
-  'việc: Gửi báo giá cho 5th season | 25/10', 'lịch: Họp khách 5th season | 25/10 14:00-15:00 | Zoom', '---'];
-function inboxDoc() {
-  const id = prop('INBOX_ID');
-  if (id) { try { const f = DriveApp.getFileById(id); if (!f.isTrashed()) return DocumentApp.openById(id); } catch (err) { /* tìm lại */ } }
-  const it = DriveApp.getFilesByName(INBOX_NAME);
-  while (it.hasNext()) { const f = it.next(); if (!f.isTrashed() && f.getMimeType() === MimeType.GOOGLE_DOCS) { PROPS.setProperty('INBOX_ID', f.getId()); return DocumentApp.openById(f.getId()); } }
-  const doc = DocumentApp.create(INBOX_NAME);
-  INBOX_HEAD.forEach((t, i) => i === 0 ? doc.getBody().getParagraphs()[0].setText(t) : doc.getBody().appendParagraph(t));
-  DriveApp.getFileById(doc.getId()).moveTo(childFolder(DriveApp.getRootFolder(), ROOT_NAME()));
-  PROPS.setProperty('INBOX_ID', doc.getId());
-  return doc;
+/* ===== Hộp thư trên GitHub: chat (Claude) ghi việc/lịch vào file data/hop-thu.json, máy chủ tự lấy về =====
+   Không dùng Google Drive/Docs. Hàm dongBo chạy tự động 5 phút một lần (trigger, cài bằng hàm batTuDong),
+   và chạy thêm mỗi lần mở web. Mỗi mục có "id" riêng; id đã xử lý được ghi nhớ nên không bao giờ tạo trùng,
+   kể cả khi lần chạy trước lỗi giữa chừng. Cấu trúc file: xem data/README.md. */
+const INBOX_REPO = 'khanhtothehan-creator/khanhtothehanwork', INBOX_PATH = 'data/hop-thu.json';
+// Đọc hộp thư: ưu tiên GitHub API (luôn là bản mới nhất), lỗi thì đọc bản raw (có thể chậm vài phút)
+function inboxFetch() {
+  const url = prop('INBOX_URL');
+  const tries = url ? [[url, {}, true]] : [
+    ['https://api.github.com/repos/' + INBOX_REPO + '/contents/' + INBOX_PATH + '?ref=main',
+      { Accept: 'application/vnd.github.raw+json', ...(prop('GITHUB_TOKEN') ? { Authorization: 'Bearer ' + prop('GITHUB_TOKEN') } : {}) }, true],
+    ['https://raw.githubusercontent.com/' + INBOX_REPO + '/main/' + INBOX_PATH + '?t=' + Date.now(), {}, false]];
+  let last = '';
+  for (const [u, headers, fresh] of tries) {
+    try {
+      const res = UrlFetchApp.fetch(u, { headers, muteHttpExceptions: true });
+      if (res.getResponseCode() === 200) return { box: JSON.parse(res.getContentText()), fresh };
+      last = 'HTTP ' + res.getResponseCode();
+    } catch (err) { last = String(err.message || err); }
+  }
+  throw new Error('Không đọc được hộp thư trên GitHub (' + last + ').');
 }
-// "25/10", "25/10/2026", "2026-10-25" → "2026-10-25"
+// Id đã xử lý: { id: 'todo' | id sự kiện Google Calendar }. Một ô property tối đa 9KB nên bỏ bớt id cũ nhất nếu đầy
+const doneRead = () => JSON.parse(store().getProperty('HT_DONE') || '{}');
+function doneWrite(m) {
+  const keys = Object.keys(m);
+  while (keys.length && JSON.stringify(m).length > 8500) delete m[keys.shift()];
+  store().setProperty('HT_DONE', JSON.stringify(m));
+}
+// "2026-10-25", "25/10", "25/10/2026" → "2026-10-25"
 function inboxDate(s) {
   s = String(s || '').trim(); let m;
   if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${('0' + m[2]).slice(-2)}-${('0' + m[3]).slice(-2)}`;
@@ -609,38 +624,74 @@ function inboxDate(s) {
   }
   return '';
 }
-function inboxImport(data) {
-  const doc = inboxDoc(), body = doc.getBody(), paras = body.getParagraphs();
-  let start = paras.findIndex(p => p.getText().trim() === '---');
-  if (start < 0) return { data, added: null };
-  const todos = [], events = [], done = [];
-  for (let i = start + 1; i < paras.length; i++) {
-    const t = paras[i].getText().trim(); if (!t || / \(\?\)$/.test(t)) continue;
-    const m = t.replace(/^[-•*\d.)\s]+/, '').match(/^(việc|viec|todo|lịch|lich)\s*:\s*(.+)$/i);
-    if (!m) { paras[i].setText(t + ' (?)'); continue; }
-    const parts = m[2].split('|').map(x => x.trim()), kind = /^(lịch|lich)$/i.test(m[1]) ? 'cal' : 'todo';
-    if (kind === 'todo') {
-      todos.push({ id: 'c' + Date.now().toString(36) + i, text: parts[0], due: inboxDate(parts[1]), done: false, t: Date.now() });
-      done.push(paras[i]);
-    } else {
-      const day = inboxDate(parts[1]), tm = String(parts[1] || '').match(/(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?/);
-      if (!day) { paras[i].setText(t + ' (?)'); continue; }
-      const req = { title: parts[0], location: parts[2] || '', description: 'Thêm từ Hộp thư', allDay: !tm, date: day };
-      if (tm) {
-        const tz = cal().getTimeZone(), st = Utilities.parseDate(`${day} ${tm[1]}:${tm[2]}`, tz, 'yyyy-MM-dd H:mm');
-        req.start = st.toISOString();
-        req.end = (tm[3] ? Utilities.parseDate(`${day} ${tm[3]}:${tm[4]}`, tz, 'yyyy-MM-dd H:mm') : new Date(st.getTime() + 3600e3)).toISOString();
-      }
-      calSave(req); events.push(parts[0]); done.push(paras[i]);
+// Một mục "lịch" của hộp thư → yêu cầu tạo sự kiện cho calSave
+// Mô tả sự kiện có thẻ [hop-thu:id] để nhận ra sự kiện đã tạo, không tạo lại
+const inboxTag = id => '[hop-thu:' + id + ']';
+function inboxEvent(it, id) {
+  const day = inboxDate(it.date), tz = cal().getTimeZone(), hm = s => String(s || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!day) throw new Error('thiếu ngày');
+  const req = { title: it.title, location: it.location || '', description: (it.note ? it.note + '\n' : '') + 'Thêm từ Hộp thư (chat) ' + inboxTag(id) };
+  const st = hm(it.start);
+  if (!st) return { ...req, allDay: true, date: day, endDate: inboxDate(it.endDate) };
+  const at = (d, m) => Utilities.parseDate(`${d} ${m[1]}:${m[2]}`, tz, 'yyyy-MM-dd H:mm');
+  const start = at(day, st), en = hm(it.end);
+  let end = en ? at(inboxDate(it.endDate) || day, en) : new Date(start.getTime() + 3600e3);
+  if (end <= start) end = new Date(end.getTime() + 864e5); // VD 22:00-01:00 qua đêm
+  return { ...req, allDay: false, start: start.toISOString(), end: end.toISOString() };
+}
+// Tìm sự kiện mang thẻ của mục này trong ngày đó, trả về id sự kiện
+function inboxFind(req, id) {
+  const from = req.allDay ? Utilities.parseDate(req.date, cal().getTimeZone(), 'yyyy-MM-dd') : new Date(req.start);
+  const to = new Date((req.allDay ? from.getTime() + 864e5 : new Date(req.end).getTime()) + 1000);
+  const e = cal().getEvents(from, to).find(x => (x.getDescription() || '').indexOf(inboxTag(id)) >= 0);
+  return e ? e.getId() : '';
+}
+// Lấy mục mới trong hộp thư: lịch → Google Calendar, việc → kho dữ liệu của web
+function dongBo() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { added: null, busy: true };
+  try {
+    const { box, fresh } = inboxFetch(), items = Array.isArray(box) ? box : (box.items || []);
+    const done = doneRead(), todos = [], events = [], errors = [];
+    items.forEach((it, i) => {
+      const id = String(it && it.id || '').trim();
+      if (!id || done[id] || !it.title) return;
+      const isEvent = /^(event|lich|lịch)$/i.test(it.type || '');
+      if (isEvent) {
+        // Trước khi tạo, tìm trong Calendar sự kiện mang thẻ của mục này (lần trước có thể đã tạo rồi lỗi trước khi kịp ghi nhớ)
+        try {
+          const req = inboxEvent(it, id), had = inboxFind(req, id);
+          if (!had) { calSave(req); events.push(it.title); }
+          done[id] = had || inboxFind(req, id) || 'lich'; doneWrite(done);
+        } catch (err) { errors.push(it.title + ': ' + (err.message || err)); }
+      } else todos.push({ id: 'h' + Date.now().toString(36) + i, text: it.title, due: inboxDate(it.date), done: false, t: Date.now(), hopThu: id });
+    });
+    // Việc: thêm vào kho rồi mới ghi nhớ id. Kho trống: chưa ghi nhớ, để lần mở web tới tự thêm (tránh tạo kho rỗng đè dữ liệu máy khác)
+    let data = storeRead(), pending = [];
+    if (todos.length && data) {
+      data.todos = (data.todos || []).concat(todos); data.t = Date.now(); storeWrite(data);
+      todos.forEach(x => { done[x.hopThu] = 'todo'; }); doneWrite(done);
+    } else pending = todos;
+    // Dọn id của mục đã bị xoá khỏi hộp thư cho gọn (chỉ khi đọc được bản mới nhất, bản raw có thể còn cũ)
+    if (fresh) {
+      const live = {}; items.forEach(it => { if (it && it.id) live[String(it.id).trim()] = 1; });
+      Object.keys(done).forEach(k => { if (!live[k]) delete done[k]; }); doneWrite(done);
     }
-  }
-  // Xoá dòng đã lấy (Google Docs không cho xoá đoạn cuối cùng nên để trống đoạn đó)
-  done.reverse().forEach(p => { try { p.removeFromParent(); } catch (err) { p.setText(''); } });
-  // Kho đã có dữ liệu: thêm việc thẳng vào kho. Kho trống: trả việc về cho web tự thêm (không tạo kho rỗng đè dữ liệu máy khác)
-  let pending = [];
-  if (todos.length && data) { data.todos = (data.todos || []).concat(todos); data.t = Date.now(); storeWrite(data); }
-  else pending = todos;
-  return { data, added: todos.length || events.length ? { todos: todos.map(x => x.text), events, pending } : null };
+    store().setProperty('HT_LAST', JSON.stringify({ at: new Date().toISOString(), todos: todos.length, events: events.length, errors }));
+    return { data, added: todos.length || events.length || errors.length ? { todos: todos.map(x => x.text), events, pending, errors } : null };
+  } finally { lock.releaseLock(); }
+}
+// Web nhận việc "pending" (khi kho còn trống) thì báo lại để ghi nhớ
+function inboxAck(req) {
+  const done = doneRead(); (req.ids || []).forEach(id => { done[id] = 'todo'; }); doneWrite(done);
+  return { ok: true };
+}
+// Chạy MỘT LẦN trong trình soạn thảo Apps Script: cài trigger chạy dongBo 5 phút một lần
+function batTuDong() {
+  ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'dongBo') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('dongBo').timeBased().everyMinutes(5).create();
+  Logger.log('Đã bật tự đồng bộ hộp thư 5 phút/lần. Chạy thử ngay:');
+  Logger.log(JSON.stringify(dongBo().added || 'Không có mục mới.'));
 }
 // Bản mới hơn thắng: nếu kho đã có bản mới hơn (máy khác vừa lưu) thì không ghi đè, trả bản đó về
 function dataSet(req) {
@@ -835,4 +886,5 @@ function kiemTra() {
   Logger.log('META_TOKEN: ' + (prop('META_TOKEN') ? 'đã có' : 'chưa có'));
   Logger.log('Google Calendar: ' + cal().getName() + ' (' + cal().getTimeZone() + ')');
   const d = storeRead(); Logger.log('Kho dữ liệu máy chủ: ' + (d ? d.clients.length + ' khách, ' + (d.todos || []).length + ' việc' : 'còn trống'));
+  Logger.log('Hộp thư GitHub lần đồng bộ cuối: ' + (store().getProperty('HT_LAST') || 'chưa chạy'));
 }

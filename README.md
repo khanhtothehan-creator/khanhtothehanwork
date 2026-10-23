@@ -11,6 +11,7 @@ assets/drive.js     đăng nhập Google, tạo thư mục, đếm file
 assets/ai.js        gọi backend AI (Claude)
 backend/Code.gs     backend Google Apps Script: Claude + Meta Ads + Google Docs/Sheets
 assets/img/         ảnh sticker
+data/hop-thu.json   hộp thư: chat ghi việc/lịch vào đây, máy chủ tự đồng bộ lên Google Calendar và web (xem data/README.md)
 ```
 
 ## 1. Chạy thử trên máy

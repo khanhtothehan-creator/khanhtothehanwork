@@ -86,6 +86,26 @@ bấm một sự kiện để sửa (tiêu đề, giờ, địa điểm, ghi ch�
 Sự kiện lặp lại chỉ xem được, sửa trong Google Calendar. Cột trái trang chủ hiện lịch hôm nay.
 Lần đầu sau khi dán code mới, chạy `kiemTra` để cấp quyền Google Calendar, rồi triển khai lại.
 
+## Hộp thư: thêm việc và lịch từ chat (tự đồng bộ, không cần mở web)
+Nhắn Claude kiểu *"thêm vào lịch: thứ 7 hẹn cà phê 19h với bạn cấp 1, chủ nhật job cả ngày"*.
+Claude ghi vào file [`data/hop-thu.json`](../data/hop-thu.json) trên GitHub (cách ghi: [`data/README.md`](../data/README.md)).
+Máy chủ Apps Script tự đọc file đó **5 phút một lần**: lịch → Google Calendar (hiện ở mục **Lịch** của web),
+việc → **Việc cần làm** của web. Không dùng Google Drive/Docs, không cần ai mở web. Mỗi mục có id riêng nên không tạo trùng.
+
+**Bật tự đồng bộ (làm một lần), chọn một trong hai cách:**
+
+*Cách A (khuyên dùng):*
+1. Mở dự án Apps Script → file `Code.gs` (đang chứa bộ nạp) → xoá hết, dán lại toàn bộ [`backend/Loader.gs`](Loader.gs) mới → 💾 lưu.
+2. Ở thanh trên chọn hàm **`batTuDong`** → ▶ **Run** → Google hỏi quyền mới (chạy khi bạn vắng mặt) → **Allow**.
+3. Execution log hiện "Đã bật tự đồng bộ hộp thư 5 phút/lần" là xong. Không cần triển khai lại Web app.
+
+*Cách B (không phải dán lại code):*
+1. Mở dự án Apps Script → biểu tượng ⏰ **Triggers** (Trình kích hoạt) ở cột trái → **+ Add Trigger**.
+2. Chọn hàm **`doGet`**, nguồn sự kiện **Time-driven**, loại **Minutes timer**, **Every 5 minutes** → **Save**.
+
+Kiểm tra: chạy `kiemTra`, dòng cuối log ghi lần đồng bộ hộp thư gần nhất (giờ, số việc/lịch đã thêm, lỗi nếu có).
+File Google Docs "Han's Work Space - Hộp thư" cũ không còn dùng nữa, có thể xoá.
+
 ## Đa tác tử
 Ô **Cách chạy** trên web có 2 chế độ:
 - **Đa tác tử** (mặc định):
@@ -107,6 +127,8 @@ Chọn Claude mà chưa có `CLAUDE_API_KEY` thì agent đó tự dùng Gemini.
 | `CLAUDE_EFFORT` | `medium` | `low` nhanh và rẻ hơn, `high` kỹ hơn nhưng lâu hơn |
 | `META_API_VERSION` | `v23.0` | Phiên bản Meta Graph API |
 | `SHEET_ID` | tự tạo | ID Google Sheet muốn ghi vào (lấy từ link `.../spreadsheets/d/<ID>/edit`) |
+| `GITHUB_TOKEN` | trống | Token GitHub chỉ đọc (fine-grained, quyền Contents: Read) nếu hộp thư hay báo lỗi HTTP 403 (giới hạn lượt đọc GitHub) |
+| `INBOX_URL` | trống | Đọc hộp thư từ link khác thay cho `data/hop-thu.json` |
 
 ## Khi sửa `Code.gs`
 Sau khi dán code mới: **Deploy → Manage deployments** → ✏️ → **Version: New version** → **Deploy**. Link Web app giữ nguyên.
