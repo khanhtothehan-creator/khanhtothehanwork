@@ -1030,11 +1030,15 @@ async function syncFromDrive(quiet) {
     // Chỉ đẩy lên khi máy này có dữ liệu thật (dataTime > 0), để máy mới không ghi đè bằng dữ liệu mẫu
     else if (dataTime && (!d || (d.t || 0) < dataTime)) await pushData();
     else syncStat(true, d ? '☁ Đã đồng bộ lúc ' + hhmm() : '☁ Máy chủ chưa có dữ liệu, mở web trên máy đang có dữ liệu để đưa lên');
-    // Việc/lịch mới từ Hộp thư (Google Docs "Han's Work Space - Hộp thư")
+    // Việc/lịch mới từ Hộp thư (file data/hop-thu.json trên GitHub, máy chủ cũng tự lấy 5 phút/lần)
     if (inbox) {
-      if (inbox.pending && inbox.pending.length) { TODOS = TODOS.concat(inbox.pending); saveTodos(); refreshCounts(); renderHomeTodo(); if (cur.m === 'todo') render(cur, false); }
+      if (inbox.pending && inbox.pending.length) {
+        TODOS = TODOS.concat(inbox.pending); saveTodos(); refreshCounts(); renderHomeTodo(); if (cur.m === 'todo') render(cur, false);
+        AI.call('inboxAck', { ids: inbox.pending.map(x => x.hopThu) }).catch(() => {});
+      }
       const parts = [inbox.todos.length ? `${inbox.todos.length} việc` : '', inbox.events.length ? `${inbox.events.length} lịch` : ''].filter(Boolean).join(' và ');
-      toast(`Đã thêm ${parts} từ Hộp thư: ${inbox.todos.concat(inbox.events).join(', ')}`);
+      if (parts) toast(`Đã thêm ${parts} từ Hộp thư: ${inbox.todos.concat(inbox.events).join(', ')}`);
+      if (inbox.errors && inbox.errors.length) toast('Hộp thư có mục chưa thêm được: ' + inbox.errors.join('; '));
       if (inbox.events.length) calLoad(true);
     }
   } catch (err) { syncStat(false, '⚠ Chưa đồng bộ: ' + err.message); }

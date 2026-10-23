@@ -48,9 +48,13 @@ function doGet(e) { return run_('doGet', e); }
 function kiemTra() { return run_('kiemTra'); }
 // Bấm chạy hàm này khi muốn dùng ngay code mới trên GitHub (không chờ 5 phút)
 function napLai() { CacheService.getScriptCache().remove('src'); Logger.log('Đã xoá bộ nhớ đệm. Lần gọi tới sẽ lấy code mới từ GitHub.'); kiemTra(); }
+// Hộp thư trên GitHub (data/hop-thu.json): trigger hẹn giờ gọi dongBo 5 phút/lần.
+// Chạy batTuDong MỘT LẦN để cấp quyền và bật trigger.
+function dongBo(e) { return run_('dongBo', e); }
+function batTuDong() { return run_('batTuDong'); }
 
-// Không bao giờ chạy. Chỉ để Google biết backend cần những quyền nào (Drive, Docs, Sheets, Calendar, kết nối ngoài).
+// Không bao giờ chạy. Chỉ để Google biết backend cần những quyền nào (Drive, Docs, Sheets, Calendar, kết nối ngoài, trigger hẹn giờ).
 function quyen_() {
   DriveApp.getRootFolder(); DocumentApp.create(''); SpreadsheetApp.create(''); CalendarApp.getDefaultCalendar();
-  UrlFetchApp.fetch(''); LockService.getScriptLock(); MimeType.GOOGLE_DOCS;
+  UrlFetchApp.fetch(''); LockService.getScriptLock(); MimeType.GOOGLE_DOCS; ScriptApp.getProjectTriggers();
 }
